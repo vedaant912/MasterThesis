@@ -22,5 +22,6 @@ Summarize the main findings and results of your study.
 
 ## Author
 
-Name  : Vedaant Joshi\n
+Name  : Vedaant Joshi
+
 Email : joshi@rhrk.uni-kl.de
