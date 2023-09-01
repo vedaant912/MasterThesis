@@ -50,9 +50,7 @@ class CarlaEnv(gym.Env):
         self.episode_number = 0
         self.max_distance_covered = 0
         self.fresh_start=True
-
         self.render_flag = True
-
 
         # waypoint data
         self.current_waypoint_index = 0
@@ -97,7 +95,7 @@ class CarlaEnv(gym.Env):
         logging.debug("Resetting environment")
 
         self.remove_pedestrians()
-        self.create_pedestrians()
+        # self.create_pedestrians()
 
         
         
@@ -112,14 +110,19 @@ class CarlaEnv(gym.Env):
         self.front_image_Queue = Queue()
         self.preview_image_Queue = Queue()
         self.distance_from_center = float(0.0)
-        self.max_distance_from_center = 4
-        self.max_speed = 20.0
+        self.max_distance_from_center = 6
+        self.max_speed = 15.0
         self.min_speed = 10.0
-        self.target_speed = 22.0
+        self.target_speed = 13.0
         self.center_lane_deviation = 0.0
         
         self.episode_number += 1
         self.danger_level = 0
+
+        self.previous_steer = float(0.0)
+        self.throttle = float(0.0)
+        self.brake = float(0.0)
+
 
         #################### SPAWNING VEHICLE #########################
         spawn_start = time.time()
@@ -266,30 +269,41 @@ class CarlaEnv(gym.Env):
         self.frame_step += 1
         self.fresh_start = False
 
-        # Apply control to the vehicle based on an action
-        if self.action_type == 'continuous':
-            if action[0] > 0:
-                # print('Throttle : ',action[0])
-                action = carla.VehicleControl(throttle=float(action[0]), steer=float(action[1]), brake=0)
-            else:
-                # print('Break : ',action[0])
-                action = carla.VehicleControl(throttle=0, steer=float(action[1]), brake= -float(action[0]))
-        elif self.action_type == 'discrete':
-            if action[0] == 0:
-                action = carla.VehicleControl(throttle=0, steer=float((action[1] - 4)/4), brake=1)
-            else:
-                action = carla.VehicleControl(throttle=float((action[0])/3), steer=float((action[1] - 4)/4), brake=0)
-        else:
-            raise NotImplementedError()
-        
-        logging.debug('{}, {}, {}'.format(action.throttle, action.steer, action.brake))
-        self.vehicle.apply_control(action)
-
         # Calculate speed in km/h from car's velocity (3D vector)
         v = self.vehicle.get_velocity()
         kmh = 3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2)
         self.speed = kmh 
 
+        # Apply control to the vehicle based on an action
+        if self.action_type == 'continuous':
+            steer = float(action[0])
+            steer = max(min(steer, 1.0), -1.0)
+            
+            if action[1] > 0:
+                throttle = float((action[1] + 1.0)/2)
+                throttle = max(min(throttle, 1.0), 0.0)
+                brake = 0
+            else:
+                brake = float((action[1] +1.0)/2)
+                brake = min(max(brake, -1.0),0.0)
+                throttle = 0
+            
+            self.vehicle.apply_control(carla.VehicleControl(steer=self.previous_steer*0.9 + steer*0.1, throttle=self.throttle*0.9 + throttle*0.1, brake=self.brake*0.9 + 0.1*brake))
+            
+            self.previous_steer = steer
+            self.throttle = throttle
+            self.brake = brake
+        else:
+            steer = self.action_space[action]
+            if kmh < 20.0:
+                self.vehicle.apply_control(carla.VehicleControl(steer=self.previous_steer*0.9 + steer*0.1, throttle=1.0))
+            else:
+                self.vehicle.apply_control(carla.VehicleControl(steer=self.previous_steer*0.9 + steer*0.1))
+            self.previous_steer = steer
+            self.throttle = 1.0
+            
+
+        
         loc = self.vehicle.get_location()
         new_dist_from_start = loc.distance(self.start_transform.location)
         square_dist_diff = new_dist_from_start ** 2 - self.dist_from_start ** 2
@@ -314,6 +328,7 @@ class CarlaEnv(gym.Env):
 
         dis_to_left, dis_to_right, sin_diff, cos_diff = dist_to_roadline(self.map, self.vehicle)
         self.location = self.vehicle.get_location()
+
 
         ############################ WAYPOINT CODE ################################
 
@@ -371,11 +386,13 @@ class CarlaEnv(gym.Env):
         #####
 
         ##### Velocity       
-        if kmh > self.max_speed:
-            print('Speed limit exceeded')
+        if kmh > self.max_speed or kmh < self.min_speed:
             reward += -10
         else:
-            reward += 10
+            reward += 0.1*kmh
+
+        if kmh > (self.target_speed - 2) or kmh < (self.target_speed + 2):
+            print('Vehicle around target speed.') 
         #####
         
         ##### Lane Invasion History
@@ -385,6 +402,8 @@ class CarlaEnv(gym.Env):
         else:
             reward += 10
         #####
+
+        reward += square_dist_diff
 
         ##### Calculating danger level based on nearest pedestrian distance
         nearest_pedestrian_distance = self.nearest_pedestrian_distance()
@@ -420,11 +439,12 @@ class CarlaEnv(gym.Env):
         elif self.current_waypoint_index >= len(self.route_waypoints) - 2:
             print('Waypoint completed, done = True')
             done = True
-            self.fresh_start = True
 
         if done:
+            print('Current distance : ' + str(self.dist_from_start) + ' Prev Max Distance :' + str(self.max_distance_covered))
             if self.dist_from_start > self.max_distance_covered:
                 self.max_distance_covered = self.dist_from_start
+                print('New maximum distance : ', str(self.max_distance_covered))
                 reward += 10
             else:
                 reward -= 10
@@ -635,3 +655,7 @@ class CarlaEnv(gym.Env):
             return 10
         else:
             return 0
+        
+    def get_discrete_action_space(self):
+        action_space = np.array([-0.50,-0.30,-0.10,0.0,0.10,0.30,0.50])
+        return action_space
