@@ -63,6 +63,8 @@ class CarlaEnv(gym.Env):
         self.walker_list_id = list()
         self.walker_list_controller = list()
 
+        self.create_pedestrians()
+
 
     @property
     def observation_space(self, *args, **kwargs):
@@ -94,10 +96,8 @@ class CarlaEnv(gym.Env):
         
         logging.debug("Resetting environment")
 
-        self.remove_pedestrians()
-        # self.create_pedestrians()
-
-        
+        #self.remove_pedestrians()
+        #self.create_pedestrians()
         
         # Car, sensors, etc. We create them every episode then destroy
         self.collision_hist = []
@@ -222,10 +222,12 @@ class CarlaEnv(gym.Env):
         if self.fresh_start:
                 self.current_waypoint_index = 0
                 # Waypoint nearby angle and distance from it
+                print('Creating Waypoints . . . . ')
                 self.route_waypoints = list()
                 self.waypoint = self.map.get_waypoint(self.vehicle.get_location(), project_to_road=True, lane_type=(carla.LaneType.Driving))
                 current_waypoint = self.waypoint
                 self.route_waypoints.append(current_waypoint)
+
                 for x in range(self.total_distance):
                     if self.map.name == "Town07":
                         if x < 650:
@@ -241,6 +243,25 @@ class CarlaEnv(gym.Env):
                         next_waypoint = current_waypoint.next(1.0)[0]
                     self.route_waypoints.append(next_waypoint)
                     current_waypoint = next_waypoint
+
+                ###################### TRIAL CODE #############################
+
+                # waypoint_radius = 0.2  # Adjust as needed
+                # waypoint_color = carla.Color(r=255, g=0, b=0)
+
+                # self.waypoint_markers = []  # List to store waypoint markers
+
+                # for waypoint in self.route_waypoints:
+                #     waypoint_location = waypoint.transform.location
+                #     waypoint_marker = self.world.debug.draw_point(
+                #         waypoint_location,
+                #         size=waypoint_radius,
+                #         color=waypoint_color,
+                #         life_time=5  # Set to 0 for permanent markers, or adjust as needed
+                #     )
+                #     self.waypoint_markers.append(waypoint_marker) 
+
+                ###############################################################
         else:
             # Teleport vehicle to last checkpoint
             waypoint = self.route_waypoints[self.checkpoint_waypoint_index % len(self.route_waypoints)]
@@ -365,9 +386,18 @@ class CarlaEnv(gym.Env):
         reward = 0
         info = dict()
 
+        collision_flag = False
+        distance_from_center_flag = False
+        speed_flag = False
+        lane_invasion_flag = False
+        pedestrian_flag = False
+
+
+
         ##### Car Collision
         if len(self.collision_hist) != 0:
-            print('Collision Occurred , done =True')
+            #print('Collision Occurred , done =True')
+            collision_flag = True
             done = True
             reward += -100
             self.collision_hist = []
@@ -378,7 +408,8 @@ class CarlaEnv(gym.Env):
 
         ##### Distance from center
         if self.distance_from_center > self.max_distance_from_center:
-            print('Distance from center exceeded, done = True')
+            # print('Distance from center exceeded, done = True')
+            distance_from_center_flag = True
             done = True
             reward += -10
         else:
@@ -387,18 +418,17 @@ class CarlaEnv(gym.Env):
 
         ##### Velocity       
         if kmh > self.max_speed or kmh < self.min_speed:
+            speed_flag = True
             reward += -10
         else:
             reward += 0.1*kmh
-
-        if kmh > (self.target_speed - 2) or kmh < (self.target_speed + 2):
-            print('Vehicle around target speed.') 
         #####
         
         ##### Lane Invasion History
         if len(self.lane_invasion_hist) != 0:
+            lane_invasion_flag = True
             reward += -10
-            print('Lane invaded')
+            #print('Lane invaded')
         else:
             reward += 10
         #####
@@ -409,10 +439,10 @@ class CarlaEnv(gym.Env):
         nearest_pedestrian_distance = self.nearest_pedestrian_distance()
         # self.danger_level = self.calculate_danger_level(nearest_pedestrian_distance)
         if nearest_pedestrian_distance <= 5.0 :
-            print('Pedestrian too close . . .')
+            # print('Pedestrian too close . . .')
+            pedestrian_flag = True
             reward -= 0.25*50
         elif nearest_pedestrian_distance > 5.0 and nearest_pedestrian_distance < 10.0:
-            print('Pedestrian close . . .')
             reward -= 0.25*10
         #####
                  
@@ -434,14 +464,20 @@ class CarlaEnv(gym.Env):
         
         if self.frame_step >= self.steps_per_episode:
             print('Completed all the frame_steps, done = True')
-            reward += 50
+            
+            if self.dist_from_start < 20 or kmh < self.min_speed:
+                reward -= 100
+                print('Penalty for being stationary :', str(reward))
+            else:
+                reward += 10
+
             done = True
         elif self.current_waypoint_index >= len(self.route_waypoints) - 2:
             print('Waypoint completed, done = True')
             done = True
 
         if done:
-            print('Current distance : ' + str(self.dist_from_start) + ' Prev Max Distance :' + str(self.max_distance_covered))
+
             if self.dist_from_start > self.max_distance_covered:
                 self.max_distance_covered = self.dist_from_start
                 print('New maximum distance : ', str(self.max_distance_covered))
@@ -449,21 +485,33 @@ class CarlaEnv(gym.Env):
             else:
                 reward -= 10
             self.fresh_start = True
+
+            self.information_print(collision_flag, distance_from_center_flag, speed_flag, lane_invasion_flag, pedestrian_flag)
+            print('Total Rewards : ', str(reward))
+            print('Total Time Steps : ', str(self.frame_step))
+            print('Current distance : ' + str(self.dist_from_start) + ' Prev Max Distance :' + str(self.max_distance_covered))
             logging.debug("Env lasts {} steps, restarting ... ".format(self.frame_step))
             self._destroy_agents()
-
-        ##### Final Reward Calculation
-        #####
 
         info = {
                 'total_reward' : reward,
                 'dist_from_start' : self.dist_from_start,
                 'avg_speed_kmph' : self.speed,
-                'episode_number': self.episode_number
+                'episode_number': self.episode_number,
+                'distance_from_center' : self.distance_from_center
             }
                 
         return image, reward, done, info
-    
+
+    def information_print(self, col_flag, dist_flag, speed_flag, lane_invasion_flag, pedestrian_flag):
+        
+        print('################# REASONS #####################')
+        print('Collision History : ',col_flag)
+        print('Dist from Center  : ',dist_flag)
+        print('Speed Exceeded    : ',speed_flag)
+        print('Lane Invasion     : ',lane_invasion_flag)
+        print('Pedestrian Near   : ',pedestrian_flag)
+
     def close(self):
         logging.info("Closes the CARLA server with process PID {}".format(self.server.pid))
         os.killpg(self.server.pid, signal.SIGKILL)
@@ -525,6 +573,9 @@ class CarlaEnv(gym.Env):
             if actor.is_alive:
                 actor.destroy()
 
+            # Clear the list of waypoint markers
+            self.waypoint_markers.clear()
+
         self.actor_list = []
 
     def _collision_data(self, event):
@@ -579,45 +630,56 @@ class CarlaEnv(gym.Env):
     # Creating and Spawning Pedestrians in our world |
     # -------------------------------------------------
     def create_pedestrians(self):
-        
-        print('####################################################')
-        print('Spawning Pedestrains . . .')
+        # Our code for this method has been broken into 3 sections.
+
         # 1. Getting the available spawn points in  our world.
         # Random Spawn locations for the walker
         walker_spawn_points = []
-        for i in range(100):
+        for i in range(150):
             spawn_point_ = carla.Transform()
             loc = self.world.get_random_location_from_navigation()
             if (loc != None):
                 spawn_point_.location = loc
                 walker_spawn_points.append(spawn_point_)
 
-        print('Total Pedestrians spawned :  ',len(walker_spawn_points))
-
         # 2. We spawn the walker actor and ai controller
         # Also set their respective attributes
         for spawn_point_ in walker_spawn_points:
-
-            walker_bp = random.choice(self.blueprint_library.filter('walker.pedestrian.*'))
-            walker_controller_bp = self.blueprint_library.find('controller.ai.walker')
-            
+            walker_bp = random.choice(
+                self.blueprint_library.filter('walker.pedestrian.*'))
+            walker_controller_bp = self.blueprint_library.find(
+                'controller.ai.walker')
             # Walkers are made visible in the simulation
             if walker_bp.has_attribute('is_invincible'):
                 walker_bp.set_attribute('is_invincible', 'false')
-            
             # They're all walking not running on their recommended speed
             if walker_bp.has_attribute('speed'):
-                walker_bp.set_attribute('speed', (walker_bp.get_attribute('speed').recommended_values[1]))
+                walker_bp.set_attribute(
+                    'speed', (walker_bp.get_attribute('speed').recommended_values[1]))
             else:
                 walker_bp.set_attribute('speed', 0.0)
-            
             walker = self.world.try_spawn_actor(walker_bp, spawn_point_)
             if walker is not None:
-                walker.apply_control(carla.WalkerControl(speed=1.0))
-                walker_controller = self.world.spawn_actor(walker_controller_bp, carla.Transform(), walker)
-                self.walker_list_controller.append(walker_controller.id)
+                walker_controller = self.world.spawn_actor(
+                    walker_controller_bp, carla.Transform(), walker)
+                self.walker_list_id.append(walker_controller.id)
                 self.walker_list_id.append(walker.id)
                 self.walker_list.append(walker)
+        all_actors = self.world.get_actors(self.walker_list_id)
+
+        print('Spawned !!!')
+
+        self.world.tick()
+
+        # set how many pedestrians can cross the road
+        #self.world.set_pedestrians_cross_factor(0.0)
+        # 3. Starting the motion of our pedestrians
+        for i in range(0, len(self.walker_list_id), 2):
+            # start walker
+            all_actors[i].start()
+        # set walk to random point
+            all_actors[i].go_to_location(
+                self.world.get_random_location_from_navigation())
 
     # -------------------------------------------------
     # Calculating distance between vehicle and the nearest pedestrian spawned.
