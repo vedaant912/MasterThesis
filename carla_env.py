@@ -17,6 +17,7 @@ from absl import logging
 import graphics
 import pygame
 from simulation.sensors import CameraSensorEnv
+from reward import reward_func1
 
 logging.set_verbosity(logging.INFO)
 
@@ -95,9 +96,6 @@ class CarlaEnv(gym.Env):
         self._destroy_agents()
         
         logging.debug("Resetting environment")
-
-        #self.remove_pedestrians()
-        #self.create_pedestrians()
         
         # Car, sensors, etc. We create them every episode then destroy
         self.collision_hist = []
@@ -122,6 +120,7 @@ class CarlaEnv(gym.Env):
         self.previous_steer = float(0.0)
         self.throttle = float(0.0)
         self.brake = float(0.0)
+        self.previous_velocity = float(0.0)
 
 
         #################### SPAWNING VEHICLE #########################
@@ -293,23 +292,30 @@ class CarlaEnv(gym.Env):
         # Calculate speed in km/h from car's velocity (3D vector)
         v = self.vehicle.get_velocity()
         kmh = 3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2)
-        self.speed = kmh 
+        self.speed = kmh
 
         # Apply control to the vehicle based on an action
         if self.action_type == 'continuous':
-            steer = float(action[0])
-            steer = max(min(steer, 1.0), -1.0)
             
-            if action[1] > 0:
-                throttle = float((action[1] + 1.0)/2)
-                throttle = max(min(throttle, 1.0), 0.0)
-                brake = 0
+            epsilon = 1
+
+            eval = True
+            
+            if np.random.random() > epsilon or eval:
+                throttle = action[0]
+                brake = float(-throttle) if throttle < 0 else 0.0
+                steer = action[1]
+                steer = max(min(steer, 1.0), -1.0)
             else:
-                brake = float((action[1] +1.0)/2)
-                brake = min(max(brake, -1.0),0.0)
-                throttle = 0
+                steer = random.uniform(-1,1)
+                throttle = random.uniform(-1,1)
+                brake = float(-throttle) if throttle < 0 else 0.0
+                steer = max(min(steer, 1.0), -1.0)
             
-            self.vehicle.apply_control(carla.VehicleControl(steer=self.previous_steer*0.9 + steer*0.1, throttle=self.throttle*0.9 + throttle*0.1, brake=self.brake*0.9 + 0.1*brake))
+            self.vehicle.apply_control(carla.VehicleControl(steer=self.previous_steer*0.9 + steer*0.1, 
+                                                            throttle=self.throttle*0.9 + throttle*0.1, 
+                                                            brake=self.brake*0.9 + 0.1*brake,
+                                                        ))
             
             self.previous_steer = steer
             self.throttle = throttle
@@ -323,14 +329,13 @@ class CarlaEnv(gym.Env):
             self.previous_steer = steer
             self.throttle = 1.0
             
-
-        
         loc = self.vehicle.get_location()
         new_dist_from_start = loc.distance(self.start_transform.location)
         square_dist_diff = new_dist_from_start ** 2 - self.dist_from_start ** 2
         self.dist_from_start = new_dist_from_start
 
         image = self.front_image_Queue.get()
+        # image.save_to_disk('tutorial/output/%.6d.jpg' % image.frame)
         image = np.array(image.raw_data)
         image = image.reshape((self.im_height, self.im_width, -1))
 
@@ -342,6 +347,7 @@ class CarlaEnv(gym.Env):
             image = (np.arange(13) == image[..., None])
             image = np.concatenate((image[:, :, 2:3], image[:, :, 6:8]), axis=2)
             image = image * 255
+            
             # logging.debug('{}'.format(image.shape))
             # assert image.shape[0] == self.im_height
             # assert image.shape[1] == self.im_width
@@ -386,13 +392,13 @@ class CarlaEnv(gym.Env):
         reward = 0
         info = dict()
 
-        collision_flag = False
-        distance_from_center_flag = False
-        speed_flag = False
-        lane_invasion_flag = False
-        pedestrian_flag = False
-
-
+        self.collision_flag = False
+        self.distance_from_center_flag = False
+        self.speed_flag = False
+        self.lane_invasion_flag = False
+        self.pedestrian_flag = False
+        
+        reward_func1(self)
 
         ##### Car Collision
         if len(self.collision_hist) != 0:
@@ -403,7 +409,7 @@ class CarlaEnv(gym.Env):
             self.collision_hist = []
             self.lane_invasion_hist = []
         else:
-            reward += 20
+            reward += 5
         #####
 
         ##### Distance from center
@@ -413,15 +419,18 @@ class CarlaEnv(gym.Env):
             done = True
             reward += -10
         else:
-            reward += 10
+            reward += 5
         #####
 
         ##### Velocity       
-        if kmh > self.max_speed or kmh < self.min_speed:
+        if kmh > self.target_speed:
             speed_flag = True
-            reward += -10
+            reward += 1.0 - (kmh - self.target_speed) / self.max_speed - self.min_speed
+        elif kmh < self.min_speed:
+            speed_flag = True
+            reward += kmh / self.min_speed
         else:
-            reward += 0.1*kmh
+            reward += 1.0
         #####
         
         ##### Lane Invasion History
@@ -430,7 +439,7 @@ class CarlaEnv(gym.Env):
             reward += -10
             #print('Lane invaded')
         else:
-            reward += 10
+            reward += 5
         #####
 
         reward += square_dist_diff
@@ -465,12 +474,11 @@ class CarlaEnv(gym.Env):
         if self.frame_step >= self.steps_per_episode:
             print('Completed all the frame_steps, done = True')
             
-            if self.dist_from_start < 20 or kmh < self.min_speed:
-                reward -= 100
+            if self.dist_from_start < 20 and kmh < self.min_speed:
+                reward -= 200
                 print('Penalty for being stationary :', str(reward))
             else:
-                reward += 10
-
+                reward += 5
             done = True
         elif self.current_waypoint_index >= len(self.route_waypoints) - 2:
             print('Waypoint completed, done = True')
@@ -486,7 +494,7 @@ class CarlaEnv(gym.Env):
                 reward -= 10
             self.fresh_start = True
 
-            self.information_print(collision_flag, distance_from_center_flag, speed_flag, lane_invasion_flag, pedestrian_flag)
+            self.information_print(self.collision_flag, self.distance_from_center_flag, self.speed_flag, self.lane_invasion_flag, self.pedestrian_flag)
             print('Total Rewards : ', str(reward))
             print('Total Time Steps : ', str(self.frame_step))
             print('Current distance : ' + str(self.dist_from_start) + ' Prev Max Distance :' + str(self.max_distance_covered))
@@ -502,7 +510,7 @@ class CarlaEnv(gym.Env):
             }
                 
         return image, reward, done, info
-
+    
     def information_print(self, col_flag, dist_flag, speed_flag, lane_invasion_flag, pedestrian_flag):
         
         print('################# REASONS #####################')
@@ -574,7 +582,7 @@ class CarlaEnv(gym.Env):
                 actor.destroy()
 
             # Clear the list of waypoint markers
-            self.waypoint_markers.clear()
+            # self.waypoint_markers.clear()
 
         self.actor_list = []
 
