@@ -17,7 +17,7 @@ from absl import logging
 import graphics
 import pygame
 from simulation.sensors import CameraSensorEnv
-from reward import reward_func1
+from reward import reward_func1, reward_func2
 
 logging.set_verbosity(logging.INFO)
 
@@ -52,6 +52,7 @@ class CarlaEnv(gym.Env):
         self.max_distance_covered = 0
         self.fresh_start=True
         self.render_flag = True
+        self.fps = fps
 
         # waypoint data
         self.current_waypoint_index = 0
@@ -111,6 +112,7 @@ class CarlaEnv(gym.Env):
         self.max_distance_from_center = 6
         self.max_speed = 15.0
         self.min_speed = 10.0
+        self.speed_accum = float(0.0)
         self.target_speed = 13.0
         self.center_lane_deviation = 0.0
         
@@ -121,6 +123,10 @@ class CarlaEnv(gym.Env):
         self.throttle = float(0.0)
         self.brake = float(0.0)
         self.previous_velocity = float(0.0)
+
+        self.low_speed_timer = float(0.0)
+
+        self.total_reward = 0
 
 
         #################### SPAWNING VEHICLE #########################
@@ -273,7 +279,7 @@ class CarlaEnv(gym.Env):
     # Steps environment
     def step(self, action):
         
-        if self.render_flag:
+        if self.render_flag and self.preview_camera_enabled:
             self.render_flag = False
             mode='human'
 
@@ -282,6 +288,8 @@ class CarlaEnv(gym.Env):
                     height=720,
                     render=(mode=="human"),
                 )
+            
+        self.action = action
 
         self.world.tick()
         self.render()
@@ -389,7 +397,6 @@ class CarlaEnv(gym.Env):
         ############################### REWARDS ##########################################
         
         done = False
-        reward = 0
         info = dict()
 
         self.collision_flag = False
@@ -397,92 +404,12 @@ class CarlaEnv(gym.Env):
         self.speed_flag = False
         self.lane_invasion_flag = False
         self.pedestrian_flag = False
+        self.low_speed_timer_flag = False
         
-        reward_func1(self)
+        reward, done = reward_func1(self)
 
-        ##### Car Collision
-        if len(self.collision_hist) != 0:
-            #print('Collision Occurred , done =True')
-            collision_flag = True
-            done = True
-            reward += -100
-            self.collision_hist = []
-            self.lane_invasion_hist = []
-        else:
-            reward += 5
-        #####
-
-        ##### Distance from center
-        if self.distance_from_center > self.max_distance_from_center:
-            # print('Distance from center exceeded, done = True')
-            distance_from_center_flag = True
-            done = True
-            reward += -10
-        else:
-            reward += 5
-        #####
-
-        ##### Velocity       
-        if kmh > self.target_speed:
-            speed_flag = True
-            reward += 1.0 - (kmh - self.target_speed) / self.max_speed - self.min_speed
-        elif kmh < self.min_speed:
-            speed_flag = True
-            reward += kmh / self.min_speed
-        else:
-            reward += 1.0
-        #####
-        
-        ##### Lane Invasion History
-        if len(self.lane_invasion_hist) != 0:
-            lane_invasion_flag = True
-            reward += -10
-            #print('Lane invaded')
-        else:
-            reward += 5
-        #####
-
-        reward += square_dist_diff
-
-        ##### Calculating danger level based on nearest pedestrian distance
-        nearest_pedestrian_distance = self.nearest_pedestrian_distance()
-        # self.danger_level = self.calculate_danger_level(nearest_pedestrian_distance)
-        if nearest_pedestrian_distance <= 5.0 :
-            # print('Pedestrian too close . . .')
-            pedestrian_flag = True
-            reward -= 0.25*50
-        elif nearest_pedestrian_distance > 5.0 and nearest_pedestrian_distance < 10.0:
-            reward -= 0.25*10
-        #####
-                 
-        # Interpolated from 1 when centered to 0 when 3 m from center
-        centering_factor = max(1.0 - self.distance_from_center / self.max_distance_from_center, 0.0)
-        # Interpolated from 1 when aligned with the road to 0 when +/- 30 degress of road
-        angle_factor = max(1.0 - abs(self.angle / np.deg2rad(20)), 0.0)
-
-        if not done:
-            if self.continuous_action_space:
-                if kmh < self.min_speed:
-                    reward += (kmh / self.min_speed) * centering_factor * angle_factor    
-                elif kmh > self.target_speed:               
-                    reward += (1.0 - (kmh - self.target_speed) / (self.max_speed - self.target_speed)) * centering_factor * angle_factor  
-                else:                                         
-                    reward += 1.0 * centering_factor * angle_factor 
-            else:
-                reward += 1.0 * centering_factor * angle_factor
-        
-        if self.frame_step >= self.steps_per_episode:
-            print('Completed all the frame_steps, done = True')
-            
-            if self.dist_from_start < 20 and kmh < self.min_speed:
-                reward -= 200
-                print('Penalty for being stationary :', str(reward))
-            else:
-                reward += 5
-            done = True
-        elif self.current_waypoint_index >= len(self.route_waypoints) - 2:
-            print('Waypoint completed, done = True')
-            done = True
+        self.total_reward += reward
+        self.speed_accum += self.speed
 
         if done:
 
@@ -502,11 +429,12 @@ class CarlaEnv(gym.Env):
             self._destroy_agents()
 
         info = {
-                'total_reward' : reward,
+                'total_reward' : self.total_reward,
                 'dist_from_start' : self.dist_from_start,
-                'avg_speed_kmph' : self.speed,
                 'episode_number': self.episode_number,
-                'distance_from_center' : self.distance_from_center
+                'avg_center_dev' : (self.center_lane_deviation / self.frame_step),
+                'avg_speed' : (self.speed_accum / self.frame_step),
+                'mean_reward' : self.total_reward / self.frame_step
             }
                 
         return image, reward, done, info
