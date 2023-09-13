@@ -113,14 +113,74 @@ def reward_func2(self):
 
     self.low_speed_timer += 1.0 / self.fps
 
-    if self.low_speed_timer > 5.0 and self.speed < 1.0 and self.current_waypoint_index >= 1:
+    # Low Speed Timer
+    if self.low_speed_timer > 10.0 and self.speed < 1.0 and self.dist_from_start < 10:
+        reward -= 500
         done = True
+        print('Low speed timer : ', str(self.low_speed_timer))
         self.low_speed_timer_flag = True
+        
+        return reward, done
 
-    if self.collision
+    # Collision History
+    if len(self.collision_hist) != 0:
+        self.collision_flag = True
+        done = True
+        reward += -200
+    else:
+        reward += 1
 
+    # Distance from center
+    if self.distance_from_center > self.max_distance_from_center:
+        self.distance_from_center_flag = True
+        done = True
+        reward -= 10
+    else:
+        reward += 1
 
+    if len(self.lane_invasion_hist) != 0:
+        self.lane_invasion_flag = True
+        reward -= 1
+    else:
+        reward += 1
 
+    if self.speed < self.min_speed:  # When speed is in [0, min_speed] range
+        self.speed_flag = True
+        speed_reward = self.speed / self.min_speed  # Linearly interpolate [0, 1] over [0, min_speed]
+    elif self.speed > self.target_speed:  # When speed is in [target_speed, inf]
+        # Interpolate from [1, 0, -inf] over [target_speed, max_speed, inf]
+        self.speed_flag = True
+        speed_reward = 1.0 - (self.speed - self.target_speed) / (self.max_speed - self.target_speed)
+    else:  # Otherwise
+        speed_reward = 1.0
 
+    centering_factor = max(1.0 - self.distance_from_center / self.max_distance_from_center, 0.0)
+    # Interpolated from 1 when aligned with the road to 0 when +/- 30 degress of road
+    angle_factor = max(1.0 - abs(self.angle / np.deg2rad(20)), 0.0)
+
+    reward += speed_reward * centering_factor * angle_factor
+
+    # Calculating danger level based on nearest pedestrian distance
+    nearest_pedestrian_distance = self.nearest_pedestrian_distance()
+    # self.danger_level = self.calculate_danger_level(nearest_pedestrian_distance)
+    if nearest_pedestrian_distance <= 5.0 :
+        # print('Pedestrian too close . . .')
+        self.pedestrian_flag = True
+        reward -= 0.25*50
+    elif nearest_pedestrian_distance > 5.0 and nearest_pedestrian_distance < 10.0:
+        reward -= 0.25*10
+
+    # Interpolated from 1 when centered to 0 when 3 m from center
+    reward += (self.current_waypoint_index - self.prev_waypoint_index) + speed_reward * centering_factor
+
+    # If steps_per_episodes are exceeded or waypoints are exceeded.
+    if self.frame_step >= self.steps_per_episode:
+        print('Completed all the frame_steps, done = True')
+        reward += 50
+        done = True
+    elif self.current_waypoint_index >= len(self.route_waypoints) - 2:
+        print('Waypoint completed, done = True')
+        reward += 50
+        done = True
 
     return reward, done
