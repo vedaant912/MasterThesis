@@ -17,7 +17,7 @@ from absl import logging
 import graphics
 import pygame
 from simulation.sensors import CameraSensorEnv
-from reward import reward_func1, reward_func2
+from reward import reward_func1, reward_func2, reward_fn_following_lane
 
 logging.set_verbosity(logging.INFO)
 
@@ -26,8 +26,7 @@ class CarlaEnv(gym.Env):
 
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, town, fps, im_width, im_height, repeat_action, start_transform_type, sensors,
-                 action_type, enable_preview, steps_per_episode, playing=False, timeout=60):
+    def __init__(self, town, fps, im_width, im_height, repeat_action, start_transform_type, sensors, action_type, enable_preview, steps_per_episode, create_pedestrian_flag, playing=False, timeout=60):
 
         super(CarlaEnv, self).__init__()
 
@@ -53,6 +52,7 @@ class CarlaEnv(gym.Env):
         self.fresh_start=True
         self.render_flag = True
         self.fps = fps
+        self.create_pedestrian_flag = create_pedestrian_flag
 
         # waypoint data
         self.current_waypoint_index = 0
@@ -64,8 +64,10 @@ class CarlaEnv(gym.Env):
         self.walker_list = list()
         self.walker_list_id = list()
         self.walker_list_controller = list()
-
-        self.create_pedestrians()
+        
+        if self.create_pedestrian_flag:
+            print(self.create_pedestrian_flag)
+            self.create_pedestrians()
 
 
     @property
@@ -110,14 +112,15 @@ class CarlaEnv(gym.Env):
         self.preview_image_Queue = Queue()
         self.distance_from_center = float(0.0)
         self.max_distance_from_center = 6
-        self.max_speed = 15.0
+        self.max_speed = 25.0
         self.min_speed = 10.0
         self.speed_accum = float(0.0)
-        self.target_speed = 13.0
+        self.target_speed = 20.0
         self.center_lane_deviation = 0.0
         
         self.episode_number += 1
         self.danger_level = 0
+        self.episode_start_time = time.time()
 
         self.previous_steer = float(0.0)
         self.throttle = float(0.0)
@@ -126,7 +129,8 @@ class CarlaEnv(gym.Env):
 
         self.low_speed_timer = float(0.0)
 
-        self.total_reward = 0
+        self.total_reward = float(0.0)
+        self.total_distance_traveled = float(0.0)
 
 
         #################### SPAWNING VEHICLE #########################
@@ -305,25 +309,16 @@ class CarlaEnv(gym.Env):
         # Apply control to the vehicle based on an action
         if self.action_type == 'continuous':
             
-            epsilon = 1
+            throttle = action[0]
+            brake = float(-throttle) if throttle < 0 else 0.0
+            steer = action[1]
+            steer = max(min(steer, 1.0), -1.0)
 
-            eval = True
-            
-            if np.random.random() > epsilon or eval:
-                throttle = action[0]
-                brake = float(-throttle) if throttle < 0 else 0.0
-                steer = action[1]
-                steer = max(min(steer, 1.0), -1.0)
-            else:
-                steer = random.uniform(-1,1)
-                throttle = random.uniform(-1,1)
-                brake = float(-throttle) if throttle < 0 else 0.0
-                steer = max(min(steer, 1.0), -1.0)
             
             self.vehicle.apply_control(carla.VehicleControl(steer=self.previous_steer*0.9 + steer*0.1, 
-                                                            throttle=self.throttle*0.9 + throttle*0.1, 
+                                                            throttle=self.throttle*0.9 + throttle*0.1,
                                                             brake=self.brake*0.9 + 0.1*brake,
-                                                        ))
+                                                    ))
             
             self.previous_steer = steer
             self.throttle = throttle
@@ -368,6 +363,7 @@ class CarlaEnv(gym.Env):
         ############################ WAYPOINT CODE ################################
 
         # keep track of closest waypoint on the route
+        self.prev_waypoint_index = self.current_waypoint_index
         waypoint_index = self.current_waypoint_index
         for _ in range(len(self.route_waypoints)):
 
@@ -393,7 +389,6 @@ class CarlaEnv(gym.Env):
         wp_fwd = self.vector(self.current_waypoint.transform.rotation.get_forward_vector())
         self.angle = self.angle_diff(fwd, wp_fwd)
 
-
         ############################### REWARDS ##########################################
         
         done = False
@@ -406,40 +401,46 @@ class CarlaEnv(gym.Env):
         self.pedestrian_flag = False
         self.low_speed_timer_flag = False
         
-        reward, done = reward_func1(self)
+        reward, done = reward_fn_following_lane(self)
 
-        self.total_reward += reward
         self.speed_accum += self.speed
+        self.total_reward += reward
+        self.total_distance_traveled += self.dist_from_start
 
         if done:
+            
+            self.information_print(self.collision_flag, self.distance_from_center_flag, self.speed_flag, self.lane_invasion_flag, self.pedestrian_flag, self.low_speed_timer_flag)
 
             if self.dist_from_start > self.max_distance_covered:
                 self.max_distance_covered = self.dist_from_start
                 print('New maximum distance : ', str(self.max_distance_covered))
-                reward += 10
+                reward += 20
             else:
                 reward -= 10
             self.fresh_start = True
 
-            self.information_print(self.collision_flag, self.distance_from_center_flag, self.speed_flag, self.lane_invasion_flag, self.pedestrian_flag)
-            print('Total Rewards : ', str(reward))
-            print('Total Time Steps : ', str(self.frame_step))
+            reward += 0.2*self.dist_from_start
+            self.total_reward += reward
+            
+            print('Total Rewards : ', str(self.total_reward))
+            print('Last step reward : ', str(reward))
             print('Current distance : ' + str(self.dist_from_start) + ' Prev Max Distance :' + str(self.max_distance_covered))
-            logging.debug("Env lasts {} steps, restarting ... ".format(self.frame_step))
+            print("Env lasts {} steps, restarting ... ".format(self.frame_step))
+            print(f'Throttle : {throttle} , Brake : {brake}')
             self._destroy_agents()
-
+        
         info = {
                 'total_reward' : self.total_reward,
-                'dist_from_start' : self.dist_from_start,
                 'episode_number': self.episode_number,
                 'avg_center_dev' : (self.center_lane_deviation / self.frame_step),
                 'avg_speed' : (self.speed_accum / self.frame_step),
+                'dist_from_start' : self.dist_from_start,
                 'mean_reward' : self.total_reward / self.frame_step
             }
                 
         return image, reward, done, info
     
-    def information_print(self, col_flag, dist_flag, speed_flag, lane_invasion_flag, pedestrian_flag):
+    def information_print(self, col_flag, dist_flag, speed_flag, lane_invasion_flag, pedestrian_flag,low_speed_timer):
         
         print('################# REASONS #####################')
         print('Collision History : ',col_flag)
@@ -447,6 +448,7 @@ class CarlaEnv(gym.Env):
         print('Speed Exceeded    : ',speed_flag)
         print('Lane Invasion     : ',lane_invasion_flag)
         print('Pedestrian Near   : ',pedestrian_flag)
+        print('Low Speed Timer   : ',low_speed_timer)
 
     def close(self):
         logging.info("Closes the CARLA server with process PID {}".format(self.server.pid))

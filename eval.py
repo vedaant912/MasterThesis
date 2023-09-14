@@ -13,8 +13,8 @@ import logging
 def main(model_name):
     town = 'Town02'
     fps = 10
-    im_width = 96
-    im_height = 96
+    im_width = 240
+    im_height = 240
     repeat_action = 4
     start_transform_type = 'random'
     sensors = 'rgb'
@@ -26,7 +26,7 @@ def main(model_name):
                    action_type, enable_preview, steps_per_episode, playing=False)
 
     try:
-        model = SAC.load('./pedestrian/rl_model_28000_steps')
+        model = SAC.load('./pedestrian/rl_model_110000_steps')
 
         logging.info('Loading the environment . . .')
         obs = env.reset()

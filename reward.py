@@ -1,6 +1,7 @@
 # Reward Functions
 from config import reward_params
 import numpy as np
+import time
 
 # min_speed = reward_params['reward_fn_5_default']["min_speed"]
 # max_speed = reward_params['reward_fn_5_default']["max_speed"]
@@ -182,5 +183,52 @@ def reward_func2(self):
         print('Waypoint completed, done = True')
         reward += 50
         done = True
+
+    return reward, done
+
+
+def  reward_fn_following_lane(self):
+
+    done = False
+    reward = 0
+
+    if len(self.collision_hist) != 0:
+        done = True
+        reward = -10
+        self.collision_flag = True    
+    elif self.distance_from_center > self.max_distance_from_center:
+        done = True
+        reward = -10
+        self.distance_from_center_flag = True
+    elif self.episode_start_time + 10 < time.time() and self.speed < 1.0:
+        reward = -10
+        done = True
+        self.low_speed_timer_flag = True
+    elif self.speed > self.max_speed:
+        reward = -10
+        done = True
+        self.speed_flag = True
+        
+
+    # If steps_per_episodes are exceeded or waypoints are exceeded.
+    if self.frame_step >= self.steps_per_episode:
+        print('Completed all the frame_steps, done = True')
+        done = True
+
+    # Interpolated from 1 when centered to 0 when 3 m from center
+    centering_factor = max(1.0 - self.distance_from_center / self.max_distance_from_center, 0.0)
+    # Interpolated from 1 when aligned with the road to 0 when +/- 30 degress of road
+    angle_factor = max(1.0 - abs(self.angle / np.deg2rad(20)), 0.0)
+
+    if not done:
+        if self.continuous_action_space:
+            if self.speed < self.min_speed:
+                reward = (self.speed / self.min_speed) * centering_factor * angle_factor    
+            elif self.speed > self.target_speed:               
+                reward = (1.0 - (self.speed-self.target_speed) / (self.max_speed-self.target_speed)) * centering_factor * angle_factor  
+            else:                                         
+                reward = 1.0 * centering_factor * angle_factor 
+        else:
+            reward = 1.0 * centering_factor * angle_factor
 
     return reward, done
