@@ -6,6 +6,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.logger import Video
 import torch as th
+import math
 
 class TensorboardCallback(BaseCallback):
     """
@@ -19,10 +20,13 @@ class TensorboardCallback(BaseCallback):
 
         # Log scalar value
         if self.locals['dones'][0]:
-            self.logger.record("custom/total_reward", self.locals['infos'][0]['total_reward'])
+            self.logger.record("custom/mean_reward", self.locals['infos'][0]['mean_reward'])
             self.logger.record("custom/dist_from_start", self.locals['infos'][0]['dist_from_start'])
-            self.logger.record("custom/avg_speed_kmph", self.locals['infos'][0]['avg_speed_kmph'])
+            self.logger.record("custom/avg_speed", self.locals['infos'][0]['avg_speed'])
             self.logger.record("custom/episode_number", self.locals['infos'][0]['episode_number'])
+            self.logger.record("custom/avg_center_dev", self.locals['infos'][0]['avg_center_dev'])
+            self.logger.record("custom/total_reward", self.locals['infos'][0]['total_reward'])
+            self.logger.record("custom/gpu_usage", self.locals['infos'][0]['gpu_usage'])
         return True
     
 
@@ -57,5 +61,32 @@ class VideoRecorderCallback(BaseCallback):
             )
 
         return True
+    
 
+def lr_schedule(initial_value: float, end_value: float, rate: float):
+    """
+    Learning rate schedule:
+        Exponential decay by factors of 10 from initial_value to end_value.
 
+    :param initial_value: Initial learning rate.
+    :param rate: Exponential rate of decay. High values mean fast early drop in LR
+    :param end_value: The final value of the learning rate.
+    :return: schedule that computes current learning rate depending on remaining progress
+    """
+
+    def func(progress_remaining: float) -> float:
+        """
+        Progress will decrease from 1 (beginning) to 0.
+
+        :param progress_remaining: A float value between 0 and 1 that represents the remaining progress.
+        :return: The current learning rate.
+        """
+        if progress_remaining <= 0:
+            return end_value
+
+        return end_value + (initial_value - end_value) * (10 ** (rate * math.log10(progress_remaining)))
+
+    func.__str__ = lambda: f"lr_schedule({initial_value}, {end_value}, {rate})"
+    lr_schedule.__str__ = lambda: f"lr_schedule({initial_value}, {end_value}, {rate})"
+
+    return func

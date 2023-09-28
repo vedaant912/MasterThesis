@@ -89,8 +89,8 @@ def setup(
         logging.debug(msg)
         attempts += 1
         logging.debug("Stopping CARLA server at port={}".format(port))
-        #os.killpg(server.pid, signal.SIGKILL)
-        #atexit.unregister(lambda: os.killpg(server.pid, signal.SIGKILL))
+        os.killpg(server.pid, signal.SIGKILL)
+        atexit.unregister(lambda: os.killpg(server.pid, signal.SIGKILL))
 
     #logging.debug("Failed to connect to CARLA after {} attempts".format(num_max_restarts))
     sys.exit()

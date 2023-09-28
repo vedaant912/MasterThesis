@@ -5,13 +5,13 @@ from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import CheckpointCallback
 from carla_env import CarlaEnv
 import argparse
-from utils import TensorboardCallback, VideoRecorderCallback
+from utils import TensorboardCallback, VideoRecorderCallback, lr_schedule
 
 def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, start_transform_type, sensors, 
-         enable_preview, steps_per_episode, seed=7, action_type='continuous'):
+         enable_preview, steps_per_episode, create_pedestrian_flag, seed=7, action_type='continuous'):
 
     env = CarlaEnv(town, fps, im_width, im_height, repeat_action, start_transform_type, sensors,
-                   action_type, enable_preview, steps_per_episode, playing=False)
+                   action_type, enable_preview, steps_per_episode,create_pedestrian_flag, playing=False)
     
     try:
         if load_model:
@@ -19,33 +19,38 @@ def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, 
                 model_name, 
                 env, 
                 action_noise=NormalActionNoise(mean=np.array([0.3, 0.0]), sigma=np.array([0.5, 0.1])))
+
         else:
             model = SAC(    
                 CnnPolicy, 
                 env,
-                learning_rate=0.0003,
+                learning_rate=1e-4, #lr_schedule(1e-4, 1e-6, 2),
                 buffer_size=1000,
                 batch_size=8,
                 verbose=2,
-                seed=seed, 
+                seed=seed,
+                ent_coef='auto',
+                train_freq = 64,
                 device='cuda', 
                 tensorboard_log='./pedestrian_logs',
-                action_noise=NormalActionNoise(mean=np.array([0.3, 0]), sigma=np.array([0.5, 0.1]))
+                action_noise=NormalActionNoise(mean=np.array([0.3, 0]), sigma=np.array([0.5, 0.1])),
+                gamma=0.98,
+                tau=0.02
                 )
         
 
         checkpoint_callback = CheckpointCallback(
-            save_freq = 1000,
-            save_path='./pedestrian/',
-            name_prefix='rl_model',
+            save_freq = 10_000,
+            save_path='./' + model_name + '/',
+            name_prefix='rl_model_pedestrian',
             save_replay_buffer=True,
             save_vecnormalize=True
         )
 
         #video_recorder = VideoRecorderCallback(env, render_freq=500)
 
-        model.learn(total_timesteps=100_000,
-                    log_interval=4,
+        model.learn(total_timesteps=500_000,
+                    log_interval=10,
                     callback=[TensorboardCallback(1), checkpoint_callback],
                     tb_log_name=model_name
                 )
@@ -70,6 +75,7 @@ if __name__ == "__main__":
     parser.add_argument('--preview', action='store_true', help='whether to enable preview camera')
     parser.add_argument('--episode-length', type=int, help='maximum number of steps per episode')
     parser.add_argument('--seed', type=int, default=7, help='random seed for initialization')
+    parser.add_argument('--create_pedestrian', type=bool, default=False, help='whether to spawn 150 pedestrians in the carla environment')
     
     args = parser.parse_args()
     model_name = args.model_name
@@ -84,6 +90,7 @@ if __name__ == "__main__":
     enable_preview = True
     steps_per_episode = args.episode_length
     seed = args.seed
+    create_pedestrian_flag = args.create_pedestrian
 
     main(model_name, load_model, town, fps, im_width, im_height, repeat_action, start_transform_type, sensors, 
-         enable_preview, steps_per_episode, seed)
+         enable_preview, steps_per_episode, create_pedestrian_flag, seed)
