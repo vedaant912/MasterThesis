@@ -17,7 +17,8 @@ from absl import logging
 import graphics
 import pygame
 from simulation.sensors import CameraSensorEnv
-from reward import reward_func1, reward_func2, reward_fn_following_lane
+from reward import reward_func1, reward_func2, reward_fn_following_lane, reward_fn_waypoint, reward_fn_pedestrian
+import subprocess
 
 logging.set_verbosity(logging.INFO)
 
@@ -66,7 +67,6 @@ class CarlaEnv(gym.Env):
         self.walker_list_controller = list()
         
         if self.create_pedestrian_flag:
-            print(self.create_pedestrian_flag)
             self.create_pedestrians()
 
 
@@ -93,9 +93,18 @@ class CarlaEnv(gym.Env):
         random.seed(seed)
         self._np_random = np.random.RandomState(seed) 
         return seed
+    
+    def get_gpu_usage(self):
+        try:
+            result = subprocess.run(['nvidia-smi', '--query-gpu=utilization.gpu', '--format=csv,nounits,noheader'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            return float(result.stdout.strip())
+        except Exception as e:
+            print(f"Error getting GPU usage: {e}")
+            return None
 
     # Resets environment for new episode
     def reset(self):
+        print('RESET')
         self._destroy_agents()
         
         logging.debug("Resetting environment")
@@ -128,6 +137,7 @@ class CarlaEnv(gym.Env):
         self.previous_velocity = float(0.0)
 
         self.low_speed_timer = float(0.0)
+        self.speed_time_flag = True
 
         self.total_reward = float(0.0)
         self.total_distance_traveled = float(0.0)
@@ -309,8 +319,8 @@ class CarlaEnv(gym.Env):
         # Apply control to the vehicle based on an action
         if self.action_type == 'continuous':
             
-            throttle = action[0]
-            brake = float(-throttle) if throttle < 0 else 0.0
+            throttle = float(action[0]) if action[0] > 0 else 0.0
+            brake = float(-action[0]) if action[0] < 0 else 0.0
             steer = action[1]
             steer = max(min(steer, 1.0), -1.0)
 
@@ -400,12 +410,23 @@ class CarlaEnv(gym.Env):
         self.lane_invasion_flag = False
         self.pedestrian_flag = False
         self.low_speed_timer_flag = False
+
+        if self.speed < 1:
+
+            if self.speed_time_flag:
+
+                self.episode_start_time = time.time()
+                self.speed_time_flag = False
+        else:
+            
+            self.speed_time_flag = True
         
-        reward, done = reward_fn_following_lane(self)
+        reward, done = reward_fn_pedestrian(self)
 
         self.speed_accum += self.speed
         self.total_reward += reward
         self.total_distance_traveled += self.dist_from_start
+        gpu_usage = self.get_gpu_usage()
 
         if done:
             
@@ -427,7 +448,6 @@ class CarlaEnv(gym.Env):
             print('Current distance : ' + str(self.dist_from_start) + ' Prev Max Distance :' + str(self.max_distance_covered))
             print("Env lasts {} steps, restarting ... ".format(self.frame_step))
             print(f'Throttle : {throttle} , Brake : {brake}')
-            self._destroy_agents()
         
         info = {
                 'total_reward' : self.total_reward,
@@ -435,7 +455,8 @@ class CarlaEnv(gym.Env):
                 'avg_center_dev' : (self.center_lane_deviation / self.frame_step),
                 'avg_speed' : (self.speed_accum / self.frame_step),
                 'dist_from_start' : self.dist_from_start,
-                'mean_reward' : self.total_reward / self.frame_step
+                'mean_reward' : self.total_reward / self.frame_step,
+                'gpu_usage' : gpu_usage
             }
                 
         return image, reward, done, info
@@ -500,7 +521,8 @@ class CarlaEnv(gym.Env):
                 raise NotImplementedError()
 
     def _destroy_agents(self):
-
+        
+        print('Destroy Agent.')
         for actor in self.actor_list:
 
             # If it has a callback attached, remove it first

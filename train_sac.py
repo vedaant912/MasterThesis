@@ -19,11 +19,12 @@ def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, 
                 model_name, 
                 env, 
                 action_noise=NormalActionNoise(mean=np.array([0.3, 0.0]), sigma=np.array([0.5, 0.1])))
+
         else:
             model = SAC(    
                 CnnPolicy, 
                 env,
-                learning_rate=lr_schedule(1e-4, 1e-6, 2),
+                learning_rate=1e-4, #lr_schedule(1e-4, 1e-6, 2),
                 buffer_size=1000,
                 batch_size=8,
                 verbose=2,
@@ -41,14 +42,14 @@ def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, 
         checkpoint_callback = CheckpointCallback(
             save_freq = 10_000,
             save_path='./' + model_name + '/',
-            name_prefix='rl_model',
+            name_prefix='rl_model_pedestrian',
             save_replay_buffer=True,
             save_vecnormalize=True
         )
 
         #video_recorder = VideoRecorderCallback(env, render_freq=500)
 
-        model.learn(total_timesteps=1_000_000,
+        model.learn(total_timesteps=500_000,
                     log_interval=10,
                     callback=[TensorboardCallback(1), checkpoint_callback],
                     tb_log_name=model_name

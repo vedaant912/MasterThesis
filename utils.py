@@ -26,6 +26,7 @@ class TensorboardCallback(BaseCallback):
             self.logger.record("custom/episode_number", self.locals['infos'][0]['episode_number'])
             self.logger.record("custom/avg_center_dev", self.locals['infos'][0]['avg_center_dev'])
             self.logger.record("custom/total_reward", self.locals['infos'][0]['total_reward'])
+            self.logger.record("custom/gpu_usage", self.locals['infos'][0]['gpu_usage'])
         return True
     
 
