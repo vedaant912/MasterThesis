@@ -31,7 +31,7 @@ def dist_to_roadline(carla_map, vehicle):
                 dis_to_left = min(dis_to_left, waypoint.lane_width / 2 + dis_to_waypt)
                 dis_to_right = min(dis_to_right, waypoint.lane_width / 2 - dis_to_waypt)
 
-    return dis_to_left, dis_to_right, math.sin(yaw_diff_rad), math.cos(yaw_diff_rad)
+    return dis_to_left, dis_to_right, waypoint
 
 def exist_intersection(carla_map, vehicle):
     curr_loc = vehicle.get_transform().location

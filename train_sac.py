@@ -3,6 +3,7 @@ from stable_baselines3 import SAC
 from stable_baselines3.sac import CnnPolicy
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack
 from carla_env import CarlaEnv
 import argparse
 from utils import TensorboardCallback, VideoRecorderCallback, lr_schedule
@@ -12,6 +13,9 @@ def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, 
 
     env = CarlaEnv(town, fps, im_width, im_height, repeat_action, start_transform_type, sensors,
                    action_type, enable_preview, steps_per_episode,create_pedestrian_flag, playing=False)
+    
+    env = DummyVecEnv([lambda: env])
+    env = VecFrameStack(env, 4)
     
     try:
         if load_model:
