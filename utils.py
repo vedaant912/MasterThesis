@@ -20,7 +20,6 @@ class TensorboardCallback(BaseCallback):
 
         # Log scalar value
         if self.locals['dones'][0]:
-            self.logger.record("custom/mean_reward", self.locals['infos'][0]['mean_reward'])
             self.logger.record("custom/dist_from_start", self.locals['infos'][0]['dist_from_start'])
             self.logger.record("custom/avg_speed", self.locals['infos'][0]['avg_speed'])
             self.logger.record("custom/episode_number", self.locals['infos'][0]['episode_number'])

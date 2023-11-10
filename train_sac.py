@@ -3,9 +3,14 @@ from stable_baselines3 import SAC
 from stable_baselines3.sac import CnnPolicy
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack
 from carla_env import CarlaEnv
 import argparse
 from utils import TensorboardCallback, VideoRecorderCallback, lr_schedule
+from custom_model import CustomCNN
+
+import torchvision.models as models
+
 
 def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, start_transform_type, sensors, 
          enable_preview, steps_per_episode, create_pedestrian_flag, seed=7, action_type='continuous'):
@@ -13,16 +18,28 @@ def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, 
     env = CarlaEnv(town, fps, im_width, im_height, repeat_action, start_transform_type, sensors,
                    action_type, enable_preview, steps_per_episode,create_pedestrian_flag, playing=False)
     
+    # env = DummyVecEnv([lambda: env])
+    # env = VecFrameStack(env, 4)
+    
     try:
         if load_model:
             model = SAC.load(
                 model_name, 
                 env, 
                 action_noise=NormalActionNoise(mean=np.array([0.3, 0.0]), sigma=np.array([0.5, 0.1])))
+            
+            model.load_replay_buffer('./SAC_Experiment_8/rl_model_pedestrian_80000_steps/rl_model_pedestrian_80000_steps/rl_model_pedestrian_160000_steps/rl_model_pedestrian_70000_steps/rl_model_pedestrian_70000_steps/rl_model_pedestrian_50000_steps/rl_model_pedestrian_replay_buffer_160000_steps.pkl')
 
         else:
+            
+            policy_kwargs = dict(
+                features_extractor_class=CustomCNN,
+                features_extractor_kwargs=dict(features_dim=1),
+                share_features_extractor=False
+            )
+        
             model = SAC(    
-                CnnPolicy, 
+                "CnnPolicy", 
                 env,
                 learning_rate=1e-4, #lr_schedule(1e-4, 1e-6, 2),
                 buffer_size=1000,
@@ -35,7 +52,8 @@ def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, 
                 tensorboard_log='./pedestrian_logs',
                 action_noise=NormalActionNoise(mean=np.array([0.3, 0]), sigma=np.array([0.5, 0.1])),
                 gamma=0.98,
-                tau=0.02
+                tau=0.02,
+                policy_kwargs=policy_kwargs,
                 )
         
 

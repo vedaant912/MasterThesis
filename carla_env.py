@@ -113,23 +113,28 @@ class CarlaEnv(gym.Env):
         self.collision_hist = []
         self.lane_invasion_hist = []
         self.actor_list = []
+
         self.frame_step = 0
         self.out_of_loop = 0
+
         self.dist_from_start = 0
         self.speed = 0
-        self.front_image_Queue = Queue()
-        self.preview_image_Queue = Queue()
         self.distance_from_center = float(0.0)
-        self.max_distance_from_center = 6
+        self.max_distance_from_center = 3
         self.max_speed = 25.0
         self.min_speed = 10.0
         self.speed_accum = float(0.0)
         self.target_speed = 20.0
         self.center_lane_deviation = 0.0
-        
+
+        self.front_image_Queue = Queue()
+        self.preview_image_Queue = Queue()
+
         self.episode_number += 1
         self.danger_level = 0
         self.episode_start_time = time.time()
+        self.reward = 0
+        self.done = False
 
         self.previous_steer = float(0.0)
         self.throttle = float(0.0)
@@ -156,7 +161,7 @@ class CarlaEnv(gym.Env):
                 logging.error('Error carla 141 {}'.format(str(e)))
                 time.sleep(0.01)
 
-            # If that can't be done in 3 seconds - forgive (and allow main process to handle for this problem)
+            # If that can't be self.done in 3 seconds - forgive (and allow main process to handle for this problem)
             if time.time() > spawn_start + 3:
                 raise Exception('Can\'t spawn a car')
             
@@ -238,55 +243,55 @@ class CarlaEnv(gym.Env):
         image = image[:, :, :3]
 
         # WAYPOINT DATA
-        if self.fresh_start:
-                self.current_waypoint_index = 0
-                # Waypoint nearby angle and distance from it
-                print('Creating Waypoints . . . . ')
-                self.route_waypoints = list()
-                self.waypoint = self.map.get_waypoint(self.vehicle.get_location(), project_to_road=True, lane_type=(carla.LaneType.Driving))
-                current_waypoint = self.waypoint
-                self.route_waypoints.append(current_waypoint)
+        # if self.fresh_start:
+        #         self.current_waypoint_index = 0
+        #         # Waypoint nearby angle and distance from it
+        #         print('Creating Waypoints . . . . ')
+        #         self.route_waypoints = list()
+        #         self.waypoint = self.map.get_waypoint(self.vehicle.get_location(), project_to_road=True, lane_type=(carla.LaneType.Driving))
+        #         current_waypoint = self.waypoint
+        #         self.route_waypoints.append(current_waypoint)
 
-                for x in range(self.total_distance):
-                    if self.map.name == "Town07":
-                        if x < 650:
-                            next_waypoint = current_waypoint.next(1.0)[0]
-                        else:
-                            next_waypoint = current_waypoint.next(1.0)[-1]
-                    elif self.map.name == "Town02":
-                        if x < 650:
-                            next_waypoint = current_waypoint.next(1.0)[-1]
-                        else:
-                            next_waypoint = current_waypoint.next(1.0)[0]
-                    else:
-                        next_waypoint = current_waypoint.next(1.0)[0]
-                    self.route_waypoints.append(next_waypoint)
-                    current_waypoint = next_waypoint
+        #         for x in range(self.total_distance):
+        #             if self.map.name == "Town07":
+        #                 if x < 650:
+        #                     next_waypoint = current_waypoint.next(1.0)[0]
+        #                 else:
+        #                     next_waypoint = current_waypoint.next(1.0)[-1]
+        #             elif self.map.name == "Town02":
+        #                 if x < 650:
+        #                     next_waypoint = current_waypoint.next(1.0)[-1]
+        #                 else:
+        #                     next_waypoint = current_waypoint.next(1.0)[0]
+        #             else:
+        #                 next_waypoint = current_waypoint.next(1.0)[0]
+        #             self.route_waypoints.append(next_waypoint)
+        #             current_waypoint = next_waypoint
 
-                ###################### TRIAL CODE #############################
+        #         ###################### TRIAL CODE #############################
 
-                # waypoint_radius = 0.2  # Adjust as needed
-                # waypoint_color = carla.Color(r=255, g=0, b=0)
+        #         # waypoint_radius = 0.2  # Adjust as needed
+        #         # waypoint_color = carla.Color(r=255, g=0, b=0)
 
-                # self.waypoint_markers = []  # List to store waypoint markers
+        #         # self.waypoint_markers = []  # List to store waypoint markers
 
-                # for waypoint in self.route_waypoints:
-                #     waypoint_location = waypoint.transform.location
-                #     waypoint_marker = self.world.debug.draw_point(
-                #         waypoint_location,
-                #         size=waypoint_radius,
-                #         color=waypoint_color,
-                #         life_time=5  # Set to 0 for permanent markers, or adjust as needed
-                #     )
-                #     self.waypoint_markers.append(waypoint_marker) 
+        #         # for waypoint in self.route_waypoints:
+        #         #     waypoint_location = waypoint.transform.location
+        #         #     waypoint_marker = self.world.debug.draw_point(
+        #         #         waypoint_location,
+        #         #         size=waypoint_radius,
+        #         #         color=waypoint_color,
+        #         #         life_time=5  # Set to 0 for permanent markers, or adjust as needed
+        #         #     )
+        #         #     self.waypoint_markers.append(waypoint_marker) 
 
-                ###############################################################
-        else:
-            # Teleport vehicle to last checkpoint
-            waypoint = self.route_waypoints[self.checkpoint_waypoint_index % len(self.route_waypoints)]
-            transform = waypoint.transform
-            self.vehicle.set_transform(transform)
-            self.current_waypoint_index = self.checkpoint_waypoint_index
+        #         ###############################################################
+        # else:
+        #     # Teleport vehicle to last checkpoint
+        #     waypoint = self.route_waypoints[self.checkpoint_waypoint_index % len(self.route_waypoints)]
+        #     transform = waypoint.transform
+        #     self.vehicle.set_transform(transform)
+        #     self.current_waypoint_index = self.checkpoint_waypoint_index
         
         return image
 
@@ -366,42 +371,45 @@ class CarlaEnv(gym.Env):
             # assert image.shape[1] == self.im_width
             # assert image.shape[2] == 3
 
-        dis_to_left, dis_to_right, sin_diff, cos_diff = dist_to_roadline(self.map, self.vehicle)
+        self.dis_to_left, self.dis_to_right, self.waypoint = dist_to_roadline(self.map, self.vehicle)
         self.location = self.vehicle.get_location()
 
+        self.distance_from_center = self.dis_to_left if self.dis_to_left > 0 else self.dis_to_right
 
         ############################ WAYPOINT CODE ################################
 
         # keep track of closest waypoint on the route
-        self.prev_waypoint_index = self.current_waypoint_index
-        waypoint_index = self.current_waypoint_index
-        for _ in range(len(self.route_waypoints)):
+        # self.prev_waypoint_index = self.current_waypoint_index
+        # waypoint_index = self.current_waypoint_index
+        # for _ in range(len(self.route_waypoints)):
 
-            # Check if we pased the next waypoint along the route
-            next_waypoint_index = waypoint_index + 1
-            wp = self.route_waypoints[next_waypoint_index % len(self.route_waypoints)]
-            dot = np.dot(self.vector(wp.transform.get_forward_vector())[:2],self.vector(self.location - wp.transform.location)[:2])
-            if dot > 0.0:
-                waypoint_index += 1
-            else:
-                break
+        #     # Check if we pased the next waypoint along the route
+        #     next_waypoint_index = waypoint_index + 1
+        #     wp = self.route_waypoints[next_waypoint_index % len(self.route_waypoints)]
+        #     dot = np.dot(self.vector(wp.transform.get_forward_vector())[:2],self.vector(self.location - wp.transform.location)[:2])
+        #     if dot > 0.0:
+        #         waypoint_index += 1
+        #     else:
+        #         break
 
-        self.current_waypoint_index = waypoint_index
+        # self.current_waypoint_index = waypoint_index
 
-        # Calculate deviation from center of the lane
-        self.current_waypoint = self.route_waypoints[ self.current_waypoint_index % len(self.route_waypoints) ]
-        self.next_waypoint =  self.route_waypoints[(self.current_waypoint_index+1) % len(self.route_waypoints)]
-        self.distance_from_center = self.distance_to_line(self.vector(self.current_waypoint.transform.location),self.vector(self.next_waypoint.transform.location),self.vector(self.location))
-        self.center_lane_deviation += self.distance_from_center
+        # # Calculate deviation from center of the lane
+        # self.current_waypoint = self.route_waypoints[ self.current_waypoint_index % len(self.route_waypoints) ]
+        # self.next_waypoint =  self.route_waypoints[(self.current_waypoint_index+1) % len(self.route_waypoints)]
+        # self.distance_from_center = self.distance_to_line(self.vector(self.current_waypoint.transform.location),self.vector(self.next_waypoint.transform.location),self.vector(self.location))
+        # self.center_lane_deviation += self.distance_from_center
+
+        self.center_lane_deviation += self.dis_to_left if self.dis_to_left > 0 else self.dis_to_right
 
         # Get angle difference between closest waypoint and vehicle forward vector
         fwd = self.vector(self.vehicle.get_velocity())
-        wp_fwd = self.vector(self.current_waypoint.transform.rotation.get_forward_vector())
+        wp_fwd = self.vector(self.waypoint.transform.rotation.get_forward_vector())
         self.angle = self.angle_diff(fwd, wp_fwd)
 
         ############################### REWARDS ##########################################
         
-        done = False
+        self.done = False
         info = dict()
 
         self.collision_flag = False
@@ -421,45 +429,47 @@ class CarlaEnv(gym.Env):
             
             self.speed_time_flag = True
         
-        reward, done = reward_fn_pedestrian(self)
+        self.reward, self.done = reward_fn_pedestrian(self)
 
         self.speed_accum += self.speed
-        self.total_reward += reward
+        self.total_reward += self.reward
         self.total_distance_traveled += self.dist_from_start
         gpu_usage = self.get_gpu_usage()
 
-        if done:
+        if self.done:
             
             self.information_print(self.collision_flag, self.distance_from_center_flag, self.speed_flag, self.lane_invasion_flag, self.pedestrian_flag, self.low_speed_timer_flag)
 
             if self.dist_from_start > self.max_distance_covered:
                 self.max_distance_covered = self.dist_from_start
                 print('New maximum distance : ', str(self.max_distance_covered))
-                reward += 20
+                self.reward += 20
             else:
-                reward -= 10
+                self.reward = self.reward - 10 + 0.2*self.dist_from_start
+            
             self.fresh_start = True
 
-            reward += 0.2*self.dist_from_start
-            self.total_reward += reward
+            self.total_reward += self.reward
+
+            self.world.tick()
+            self.render()
             
             print('Total Rewards : ', str(self.total_reward))
-            print('Last step reward : ', str(reward))
+            print('Last step reward : ', str(self.reward))
             print('Current distance : ' + str(self.dist_from_start) + ' Prev Max Distance :' + str(self.max_distance_covered))
             print("Env lasts {} steps, restarting ... ".format(self.frame_step))
             print(f'Throttle : {throttle} , Brake : {brake}')
-        
+            
         info = {
                 'total_reward' : self.total_reward,
                 'episode_number': self.episode_number,
                 'avg_center_dev' : (self.center_lane_deviation / self.frame_step),
                 'avg_speed' : (self.speed_accum / self.frame_step),
                 'dist_from_start' : self.dist_from_start,
-                'mean_reward' : self.total_reward / self.frame_step,
                 'gpu_usage' : gpu_usage
             }
                 
-        return image, reward, done, info
+        return image, self.reward, self.done, info
     
     def information_print(self, col_flag, dist_flag, speed_flag, lane_invasion_flag, pedestrian_flag,low_speed_timer):
         
@@ -503,16 +513,36 @@ class CarlaEnv(gym.Env):
 
         if self.preview_camera_enabled:
 
-            preview_img = self.preview_image_Queue.get()
-            preview_img = np.array(preview_img.raw_data)
-            preview_img = preview_img.reshape((720, 720, -1))
-            preview_img = preview_img[:, :, :3]
-            graphics.make_dashboard(
-                display=self._display,
-                font=self._font,
-                clock=self._clock,
-                observations={"preview_camera":preview_img},
-            )
+            if not self.done:
+            
+                preview_img = self.preview_image_Queue.get()
+                preview_img = np.array(preview_img.raw_data)
+                preview_img = preview_img.reshape((720, 720, -1))
+                preview_img = preview_img[:, :, :3]
+                graphics.make_dashboard(
+                    display=self._display,
+                    font=self._font,
+                    clock=self._clock,
+                    observations={"preview_camera":preview_img},
+                )
+
+            #################### INFORMATION CODE ################################
+            info_text = "Total Reward: " + str(self.total_reward) #+ "\nCurrent Reward : " + str(float(self.reward)) # Replace your_variable with the actual variable
+            info_surface = self._font.render(info_text, True, (0, 0, 0))  # Render the text surface with white color
+
+            info_text_2 = "Current Reward: " + str(self.reward) + " Distance : " + str(self.dist_from_start)
+            info_surface_2 = self._font.render(info_text_2, True, (0, 0, 0))  # Render the text surface with white color
+
+
+            # Blit the info surface onto the Pygame window
+            info_position = (290, 10)  # Adjust the position where you want to display the text
+            self._display.blit(info_surface, info_position)
+            self._display.blit(info_surface_2, (290, 20))
+
+            if self.done:
+                time.sleep(2.0)
+
+            #################### INFORMATION CODE ################################
 
             if mode == "human":
                 # Update window display.
@@ -532,9 +562,6 @@ class CarlaEnv(gym.Env):
             # If it's still alive - desstroy it
             if actor.is_alive:
                 actor.destroy()
-
-            # Clear the list of waypoint markers
-            # self.waypoint_markers.clear()
 
         self.actor_list = []
 
@@ -595,7 +622,7 @@ class CarlaEnv(gym.Env):
         # 1. Getting the available spawn points in  our world.
         # Random Spawn locations for the walker
         walker_spawn_points = []
-        for i in range(150):
+        for i in range(200):
             spawn_point_ = carla.Transform()
             loc = self.world.get_random_location_from_navigation()
             if (loc != None):
@@ -637,9 +664,8 @@ class CarlaEnv(gym.Env):
         for i in range(0, len(self.walker_list_id), 2):
             # start walker
             all_actors[i].start()
-        # set walk to random point
-            all_actors[i].go_to_location(
-                self.world.get_random_location_from_navigation())
+            # set walk to random point
+            all_actors[i].go_to_location(self.world.get_random_location_from_navigation())
 
     # -------------------------------------------------
     # Calculating distance between vehicle and the nearest pedestrian spawned.
