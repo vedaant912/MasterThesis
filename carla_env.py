@@ -282,15 +282,8 @@ class CarlaEnv(gym.Env):
         #         #         size=waypoint_radius,
         #         #         color=waypoint_color,
         #         #         life_time=5  # Set to 0 for permanent markers, or adjust as needed
-        #         #     )
-        #         #     self.waypoint_markers.append(waypoint_marker) 
+        #         #     )    #logging.debug("Failed to connect to CARLA after {} attempts".format(num_max_restarts))
 
-        #         ###############################################################
-        # else:
-        #     # Teleport vehicle to last checkpoint
-        #     waypoint = self.route_waypoints[self.checkpoint_waypoint_index % len(self.route_waypoints)]
-        #     transform = waypoint.transform
-        #     self.vehicle.set_transform(transform)
         #     self.current_waypoint_index = self.checkpoint_waypoint_index
         
         return image
@@ -353,7 +346,7 @@ class CarlaEnv(gym.Env):
         self.dist_from_start = new_dist_from_start
 
         image = self.front_image_Queue.get()
-        # image.save_to_disk('tutorial/output/%.6d.jpg' % image.frame)
+        #image.save_to_disk('tutorial/output/%.6d.jpg' % image.frame)
         image = np.array(image.raw_data)
         image = image.reshape((self.im_height, self.im_width, -1))
 
@@ -429,7 +422,7 @@ class CarlaEnv(gym.Env):
             
             self.speed_time_flag = True
         
-        self.reward, self.done = reward_fn_pedestrian(self)
+        self.reward, self.done = reward_fn_following_lane(self)
 
         self.speed_accum += self.speed
         self.total_reward += self.reward
@@ -445,7 +438,7 @@ class CarlaEnv(gym.Env):
                 print('New maximum distance : ', str(self.max_distance_covered))
                 self.reward += 20
             else:
-                self.reward = self.reward - 10 + 0.2*self.dist_from_start
+                self.reward = self.reward + 0.2*self.dist_from_start
             
             self.fresh_start = True
 

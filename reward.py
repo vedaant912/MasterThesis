@@ -209,7 +209,6 @@ def reward_fn_following_lane(self):
         done = True
         self.speed_flag = True
         
-
     # If steps_per_episodes are exceeded or waypoints are exceeded.
     if self.frame_step >= self.steps_per_episode:
         print('Completed all the frame_steps, done = True')

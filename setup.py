@@ -63,8 +63,9 @@ def setup(
     env["SDL_VIDEODRIVER"] = "offscreen"
     env["SDL_HINT_CUDA_DEVICE"] = "0"
     logging.debug("Inits a CARLA server at port = {}".format(port))
-
-    server = subprocess.Popen(['/home/joshi/Carla/CarlaUE4.sh'])
+    
+    
+    server = subprocess.Popen(['/home/joshi/Carla/CarlaUE4.sh',"-RenderOffScreen"])
     #server = subprocess.Popen(f'DISPLAY= /home/joshi/Carla/CarlaUE4.sh' + f" -quality-level=Epic ", stderr=subprocess.STDOUT, preexec_fn=os.setsid, env=env, shell=True)
     atexit.register(os.killpg, server.pid, signal.SIGKILL)
     time.sleep(server_timestop)

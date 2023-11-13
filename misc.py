@@ -1,4 +1,3 @@
-import carla
 import math
 
 def dist_to_roadline(carla_map, vehicle):

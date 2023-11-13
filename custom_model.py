@@ -2,7 +2,6 @@ import torch as th
 import torch.nn as nn
 from gymnasium import spaces
 
-from stable_baselines3 import SAC
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 import torchvision.models as models
@@ -21,8 +20,6 @@ class CustomCNN(BaseFeaturesExtractor):
         self.resnet.conv1 = nn.Conv2d(n_input_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
 
         self.resnet = nn.Sequential(*list(self.resnet.children())[:-1])
-
-        print(self.resnet[-1])
 
         # Compute shape by doing one forward pass
         with th.no_grad():

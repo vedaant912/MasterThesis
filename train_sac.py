@@ -28,7 +28,7 @@ def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, 
                 env, 
                 action_noise=NormalActionNoise(mean=np.array([0.3, 0.0]), sigma=np.array([0.5, 0.1])))
             
-            model.load_replay_buffer('./SAC_Experiment_8/rl_model_pedestrian_80000_steps/rl_model_pedestrian_80000_steps/rl_model_pedestrian_160000_steps/rl_model_pedestrian_70000_steps/rl_model_pedestrian_70000_steps/rl_model_pedestrian_50000_steps/rl_model_pedestrian_replay_buffer_160000_steps.pkl')
+            model.load_replay_buffer('./sac_model_resnet18/rl_model_pedestrian_50000_steps/rl_model_pedestrian_70000_steps/rl_model_pedestrian_replay_buffer_500000_steps.pkl')
 
         else:
             
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     repeat_action = args.repeat_action
     start_transform_type = args.start_location
     sensors = args.sensor
-    enable_preview = True
+    enable_preview = False
     steps_per_episode = args.episode_length
     seed = args.seed
     create_pedestrian_flag = args.create_pedestrian
