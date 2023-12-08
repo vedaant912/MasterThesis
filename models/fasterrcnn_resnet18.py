@@ -8,8 +8,7 @@ from torchvision.models.detection.rpn import AnchorGenerator
 
 def create_model(num_classes):
 
-    # Import pretrained SAC model from Reinforcement Learning Training and create the backbone
-    # for the FasterRCNN network using the Feature Extractor of SAC critic architecture.
+    # Import pretrained model from Reinforcement Learning and create the backbone using those layers    
     model = SAC.load('./sac_model_resnet18/rl_model_pedestrian_50000_steps.zip')
 
     critic_model_features_extractor = model.critic.features_extractor.resnet
