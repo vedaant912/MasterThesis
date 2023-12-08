@@ -1,4 +1,0 @@
-{
-    "bboxes": [],
-    "pedestrian_class": []
-}
