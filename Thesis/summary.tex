@@ -1,0 +1,196 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Beispieldokument zur Nutzung der Latex-Klasse rrlab.cls  %%
+%% mit Information zur Erstellung wissenschaftlicher        %%
+%% Dokumente.                                               %%
+%%                                                          %%
+%% Hauptdatei: summary.tex                                  %%
+%% Autor: Tobias Groll  (groll@informatik.uni-kl.de)        %%
+%% Datum: Januar 2021                                       %%
+%%                                                          %%
+%% Letzte Änderung Januar 2021                              %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Definition der Dokumentenklasse (rrlab.cls) mit folgenden optionalen Parametern:
+% 
+% [boldauthor]   Hebt den in der Datei 'bold_author.bib' definierten Autor im  Literaturverzeichnis hervor (erzeugt LaTeX-Warning!)
+% [colorlinks]   Empfohlen für Bildschirmpräsentation; kann verwendet werden, um beim Bauen mit 'pdflatex' die farbigen Links einzuschalten
+% [showlabels]   Zeigt alle LaTeX-Labels an der verwendeten Stelle an (EXPERIMENTAL)
+% [draft]        Lässt Titelseite, Index, etc. weg, markiert overfullboxes und erzeugt Fußzeile mit Informationen zum Dokument
+% [de,en]        Sprache, standardmäßig ist [de]
+% [diss]         Erstellen einer Dissertation zur Abgabe beim Fachbereich
+% [dissfinal]    Erstellen einer Dissertation zur Abgabe beim Verlag
+% [summary]      Create a ``Kurzfassung'' to hand in to department in advance of the actual thesis
+% [latin1]       Setzt Input Encoding auf latin1, standardmäßig utf8
+% [relaxed]      Erlaubt etwas unschönere Abstände für automatische Zeilenumbrüche
+% [rgbcolor]     Setzt die Farbkodierung auf RGB (empfohlen für Bildschirmpräsentation); standardmäßig ist CMYK eingestellt (für den Druck)
+% [icsecondpage] 'Image correction for 2nd page' mach für die 2. Seite eine Bindekorrektur die der, der roten Deckblätter für Diplom-,
+%                Bachelor- und Masterarbeiten entspricht. Dies ist hilfreich, wenn man den Titel der Arbeit nicht auf das Deckblatt
+%                drucken will (dafür gibt es ebenfalls eine Vorlage), sondern das Titelfeld ausschneiden möchte. Dann passt der Titel
+%                auf der 2. Seite genau in dieses Fenster.
+% [dipl]         Da bei Diplomarbeiten keine zwei Gutachter benötigt werden, wird hiermit das Erscheinen des 2. Gutachters ausgeschaltet.
+% [report]       Zum Erstellen eines Berichts, kein "chapter" nur "section" kann genutzt werden um Berichte oder Semiararbeiten ect.
+%                anzufertigen. Mit dem Befehl \RRLABmaktetitle kann ein Paper-Ähnlicher Kopf erzeugt werden (bspw. für Seminararbeiten). 
+%                Die Benutzung mit \RRLABtitlepage und \RRLABpagenumbers eignet sich für Anträge, Berichte etc.
+% [external]     Bietet die Möglichkeit mit \RRLABinstitution{x} die Institution - Name der Uni, Arbeitsgruppe etc - manuell zu setzten
+%                im allgemeinen nicht nötig
+
+ \documentclass[de,summary]{template/rrlab} % For final Dissertation
+%\documentclass[en,diss,boldauthor]{template/rrlab}    % For initial submission phase of Dissertation
+%\documentclass[]{template/rrlab}
+
+% Zuerst einige wichtige Informationen zur Arbeit.
+% Diese Angaben sind obligatorisch. Bitte benutze die
+% vordefinierten Makros.
+
+% Titel der Arbeit:
+\RRLABtitle{}
+
+% Autor der Arbeit:
+\RRLABauthor{}
+
+% Typ der Arbeit (z.B. Diplomarbeit, Projektarbeit, Seminararbeit,..):
+\RRLABtype{Dissertation}
+
+% Datum der Ausgabe der Arbeit
+\RRLABinception{}
+
+% Datum der Abgabe der Arbeit
+\RRLABsubmission{}
+
+% Erster Gutachter
+\RRLABfirstreviewer{Prof. Dr. Karsten Berns}
+
+% Zweiter Gutachter
+\RRLABsecondreviewer{irgendwer}
+
+%% Nur für Projekt-, Diplomarbeit, Bachelor-, Masterthesis
+% Betreuer
+\RRLABsupervisor{}
+
+%% Nur für Dissertationen
+% Angestrebter Titel
+\RRLABdegree{Doktor-Ingenieur (Dr.-Ing.)}
+
+% Datum der Abgabe der Aussprache
+\RRLABdefense{irgendwann}
+
+% Prüfungsvorsitzender
+\RRLABchair{irgendwer}
+
+% Dekan
+\RRLABdean{irgendwer}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Einbinden von zusätzlichen Paketen 
+%% Hier kann der geübte TeX-Benutzer weitere 
+%% Pakete einbinden
+%%
+%% Bereits eingebundene Pakete in <rrlab.cls>
+%% \usepackage[T1]{fontenc}  T1-encoded fonts: auch Wörter mit Umlauten trennen
+%% \usepackage{lmodern}  Neuerer Ersatz für Schriftfamilie 'ae' (zusammen mit fontenc)
+%% \usepackage{inputenc}  Eingabe nach ISO 8859-1 (Latin1)
+%% \usepackage[final]{graphicx}  um Graphiken einzubinden
+%% \usepackage{makeidx} wir wollen auch einen Index
+%% \usepackage{geometry}  Seitenränder einstellen leichtgemacht
+%% \usepackage{fancyhdr}  definiere einfache Headings
+%% \usepackage{longtable}  seitenübergreifende Tabellen
+%% \usepackage{booktabs}  fuer spezielle unterteilungslinien
+%% \usepackage[T1]{url}  zum Darstellen von URLs, zusätzlich werden Zeilenumbrüche in URLs ermöglicht
+%% \usepackage{caption}  die Schriftgröße für Captions ist small, die Labels sind zusätzlich fett
+%% \usepackage{subcaption}  für subfigure environment (Ersatz für subfig)
+%% \usepackage[tight,nice]{units}  Typografisch korrekte Darstellung von Einheiten
+%% \usepackage{listings}  Einbindung und Darstellung von Quellcode
+%% \usepackage{multibib}  Unterstützung von mehreren Bibliografien
+%% \usepackage{microtype}  Typografische Erweiterungen
+%% \usepackage{xcolor}  Farbkodierung für Bildschirm (RGB)
+%% \usepackage{amssymb,amsmath,dsfont}  Mathematikumgebung und -symbole
+%% \usepackage{ifthen}  ifthenelse Syntax
+%% \usepackage{datetime}  Erweiterter Zugriff auf Datums- und Zeitwerte
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% einige weitere Pakete, die evtl. nützlich sein können
+%\usepackage{tikz} %% Tik Z ist kein Zeichenprogramm! Es ist die benutzfreundliche Schnittstelle zu PGF.
+%\usetikzlibrary{shapes,arrows,calc,patterns,fit,decorations.pathmorphing,positioning} %% zusätzliche Bibliothek zu tikz
+%\usepackage{pgfplots}  %%interface um pgf plots in tex darzustellen
+%% \usepackage{lscape}  landscape-Paket um text um 90° zu rotieren
+%% \usepackage{rotating}  um Bilder zu drehen
+%% \usepackage{marvosym}  einige zusätzliche symbole
+%% \usepackage{textcomp}  weitere symbole
+%% \usepackage{eurosym}  Euro-Symbol
+%\usepackage{siunitx}
+%\usepackage[]{algorithm2e}
+%\usepackage{todonotes}
+%\usepackage{hyperref}
+%\usepackage[nomessages]{fp}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Makrodefinitionen. 
+%% Hier kann der geübte TeX-Benutzer eigene Makros oder
+%% Kommandos definieren
+%%
+%% Für häufig verwendete Namen sind einige Makros vordefiniert,
+%% siehe template/rrlab_macros.tex
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Bilderverzeichnisse. 
+%% Die hier angegebenen Verzeichnisse werden neben dem 
+%% aktuellen Verzeichnis nach Bilddateien durchsucht.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\graphicspath{%
+ {./images/}
+}
+
+\makeatletter
+
+\makeatother
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Document Environment. 
+%% Hier geht's dann wirklich los.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+% Die folgenden Befehle nach Bedarf benutzen oder auskommentieren:
+
+% Titelblatt generieren. Als Parameter kann das Datum übergeben werden
+\RRLABtitlepage{}{\currentdate\today}
+
+\section*{Contents}
+describe your dissertation content in maximum of 2 sites
+
+\section*{Publications}
+give a list of your publications 
+
+%insert the table of content from the actual thesis
+%the parameter is the corresponding toc file from where it should be read 
+%(toc files are usually generated by latex when a table of content is generated)
+%\RRLABthesistableofcontent{thesis.toc}
+
+% Seite mit der Erklärung, dass das Promotionsthema eingehalten wurde.
+% Parameter ist das Datum, an dem die Erklärung unterschrieben wird
+\RRLABdeclaration{\currentdate\today}
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Literaturverzeichnis
+%%
+%% Einbinden des Literaturverzeichnisses. Das Makro erwartet
+%% ein BibTex-Files (z.B. literatur.bib) ohne Dateiendung
+%% als Parameter.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\RRLABbibliography{literatur}
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% index generieren? ggf. auskommentieren
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \RRLABindex
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Ende des Dokuments
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\end{document}
