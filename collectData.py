@@ -45,7 +45,7 @@ def retrieve_data(sensor_queue, frame, timeout=5):
 save_rgb = True
 save_depth = False
 save_segm = False
-save_lidar = False
+save_lidar = True
 tick_sensor = 1
 
 def main():
@@ -115,11 +115,41 @@ def main():
                 spawn_point_.location = loc
                 walker_spawn_points.append(spawn_point_)
 
+        
+        print('Got the spawn points!!!')
+        walker_list_id = []
+        walker_list = []
+
         for spawn_point_ in walker_spawn_points:
             walker_bp = random.choice(
                 bp_lib.filter('walker.pedestrian.*'))
-            walker = world.try_spawn_actor(walker_bp, spawn_point_)
+            walker_controller_bp = bp_lib.find(
+                'controller.ai.walker')
 
+            # They're all walking not running on their recommended speed
+            if walker_bp.has_attribute('speed'):
+                walker_bp.set_attribute(
+                    'speed', (walker_bp.get_attribute('speed').recommended_values[1]))
+            else:
+                walker_bp.set_attribute('speed', 0.0)
+            walker = world.try_spawn_actor(walker_bp, spawn_point_)
+            if walker is not None:
+                walker_controller = world.spawn_actor(
+                    walker_controller_bp, carla.Transform(), walker)
+
+                walker_list_id.append(walker_controller.id)
+                walker_list_id.append(walker.id)
+                walker_list.append(walker)
+
+        all_actors = world.get_actors(walker_list_id)
+        
+        world.tick()
+
+        for i in range(0, len(walker_list_id), 2):
+            # start walker
+            all_actors[i].start()
+            # set walk to random point
+            all_actors[i].go_to_location(world.get_random_location_from_navigation())
 
         print('Created %d npc walker \n' % len(walker_spawn_points))
         
@@ -169,6 +199,24 @@ def main():
         idx = idx+1
         print('Depth camera ready')
 
+        # Spawn LIDAR sensor
+        lidar_bp = world.get_blueprint_library().find('sensor.lidar.ray_cast_semantic')
+        lidar_bp.set_attribute('sensor_tick', '1.0')
+        lidar_bp.set_attribute('channels', '64')
+        lidar_bp.set_attribute('points_per_second', '1120000')
+        lidar_bp.set_attribute('upper_fov', '40')
+        lidar_bp.set_attribute('lower_fov', '-40')
+        lidar_bp.set_attribute('range', '100')
+        lidar_bp.set_attribute('rotation_frequency', '20')
+        lidar_transform = carla.Transform(carla.Location(x=1.5, z=2.4))
+        lidar = world.spawn_actor(lidar_bp, lidar_transform, attach_to=ego_vehicle)
+        nonvehicles_list.append(lidar)
+        lidar_queue = queue.Queue()
+        lidar.listen(lidar_queue.put)
+        q_list.append(lidar_queue)
+        lidar_idx = idx
+        idx = idx+1
+
         # Spawn segmentation camera
         if save_segm:
             segm_bp = world.get_blueprint_library().find('sensor.camera.semantic_segmentation')
@@ -205,23 +253,28 @@ def main():
 
         # Begin the loop
         time_sim = 0
+        epoch = 0
         while True:
             # Extract the available data
             nowFrame = world.tick()
 
             # Check whether it's time to capture data
-            if time_sim >= tick_sensor:
+            if time_sim >= tick_sensor and epoch%10 == 0:
+
+                print('Inside if . . . ')
                 data = [retrieve_data(q,nowFrame) for q in q_list]
                 assert all(x.frame == nowFrame for x in data if x is not None)
 
                 # Skip if any sensor data is not available
                 if None in data:
+                    print('No data available')
                     continue
                 
                 vehicles_raw = world.get_actors().filter('walker.pedestrian.*')
                 snap = data[tick_idx]
                 rgb_img = data[cam_idx]
                 depth_img = data[depth_idx]
+                lidar_img = data[lidar_idx]
                 
                 # Attach additional information to the snapshot
                 vehicles = cva.snap_processing(vehicles_raw, snap)
@@ -229,12 +282,17 @@ def main():
                 # Save depth image, RGB image, and Bounding Boxes data
                 if save_depth:
                     depth_img.save_to_disk('out_depth/%06d.png' % depth_img.frame, cc_depth_log)
+                
                 depth_meter = cva.extract_depth(depth_img)
-                filtered, removed =  cva.auto_annotate(vehicles, cam, depth_meter, json_path='vehicle_class_json_file.txt')
-                cva.save_output(rgb_img, filtered['bbox'], filtered['class'], removed['bbox'], removed['class'], save_patched=True, out_format='json')
+
+                filtered, removed =  cva.auto_annotate_lidar(vehicles, cam, lidar_img, show_img = rgb_img, json_path = 'vehicle_class_json_file.txt')
+
+                print('before saving function is called !!!')
+                cva.save_output(rgb_img, filtered['bbox'], filtered['class'], save_patched=True, out_format='json')
                 
                 # Uncomment if you want to save the data in darknet format
                 #cva.save2darknet(filtered['bbox'], filtered['class'], rgb_img)
+                epoch += 1
 
                 # Save segmentation image
                 if save_segm:

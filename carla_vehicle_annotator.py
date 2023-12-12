@@ -450,18 +450,20 @@ def get_vehicle_class(vehicles, json_path=None):
 
 ### Use this function to save the rgb image (with and without bounding box) and bounding boxes data 
 def save_output(carla_img, bboxes, vehicle_class=None, old_bboxes=None, old_vehicle_class=None, cc_rgb=carla.ColorConverter.Raw, path='', save_patched=False, add_data=None, out_format='pickle'):
+    
+    print('saving')
     carla_img.save_to_disk(path + 'out_rgb/%06d.png' % carla_img.frame, cc_rgb)
 
     out_dict = {}
     bboxes_list = [bbox.tolist() for bbox in bboxes]
     out_dict['bboxes'] = bboxes_list
     if vehicle_class is not None:
-        out_dict['vehicle_class'] = vehicle_class
+        out_dict['pedestrian_class'] = vehicle_class
     if old_bboxes is not None:
         old_bboxes_list = [bbox.tolist() for bbox in old_bboxes]
         out_dict['removed_bboxes'] = old_bboxes_list
     if old_vehicle_class is not None:
-        out_dict['removed_vehicle_class'] = old_vehicle_class
+        out_dict['removed_pedestrian_class'] = old_vehicle_class
     if add_data is not None:
         out_dict['others'] = add_data
     if out_format=='json':
