@@ -9,7 +9,7 @@ from torchvision.models.detection.rpn import AnchorGenerator
 def create_model(num_classes):
 
     # Import pretrained model from Reinforcement Learning and create the backbone using those layers    
-    model = SAC.load('./sac_model_resnet18/rl_model_pedestrian_50000_steps.zip')
+    model = SAC.load('./models/rl_model_pedestrian_200000_steps')
 
     critic_model_features_extractor = model.critic.features_extractor.resnet
 

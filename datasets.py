@@ -34,7 +34,7 @@ def read_dicts_from_file(file_path):
 class CustomDataset(Dataset):
     def __init__(
         self, images_path, labels_path, 
-        width, height, classes, transforms=None
+        width, height, classes, valid=False, transforms=None
     ):
         self.transforms = transforms
         self.images_path = images_path
@@ -45,6 +45,7 @@ class CustomDataset(Dataset):
         self.image_file_types = ['*.jpg', '*.jpeg', '*.png', '*.ppm']
         self.all_image_paths = []
         self.dictionary = dict()
+        self.valid = valid
         
         # get all the image paths in sorted order
         for file_type in self.image_file_types:
@@ -53,29 +54,38 @@ class CustomDataset(Dataset):
         
         # Remove all annotations and images when no object is present.
         self.read_and_clean()
+
         self.all_images = [image_path.split(os.path.sep)[-1] for image_path in self.all_image_paths]
         self.all_images = sorted(self.all_images)
     
     def read_and_clean(self):
         """
-        This function will discard any images and labels when the XML 
+        This function will discard any images and labels when the .txt 
         file does not contain any object.
         """
-        for annot_path in self.all_annot_paths:
 
+        for annot_path in self.all_annot_paths:
+            
             self.dictionary = read_dicts_from_file(annot_path)
             bbox = self.dictionary['bboxes']
-            
-            if len(bbox) == 0:
+            label = self.dictionary['pedestrian_class']
+
+            if len(bbox) == 0 or len(label)==0:
                 print(f"Removing {annot_path} and corresponding image")
+                
+                if self.valid:
+                    image_path = './input/valid_images/' + annot_path.split('/')[3].split('.txt')[0] + '.png'
+                else:
+                    image_path = './input/train_images/' + annot_path.split('/')[3].split('.txt')[0] + '.png'
+
                 self.all_annot_paths.remove(annot_path)
-                self.all_image_paths.remove(annot_path.split('.txt')[0]+'.jpg')
+                self.all_image_paths.remove(image_path)
 
     def __getitem__(self, idx):
         
         # capture the image name and the full image path
         image_name = self.all_images[idx]
-        image_path = os.path.join(self.images_path, image_name)
+        image_path = os.path.join(self.images_path, image_name) 
 
         # read the image
         image = cv2.imread(image_path)
@@ -84,32 +94,29 @@ class CustomDataset(Dataset):
         image_resized = cv2.resize(image, (self.width, self.height))
         image_resized /= 255.0
         
-        # capture the corresponding XML file for getting the annotations
+        # capture the corresponding .txt file for getting the annotations
         annot_filename = image_name[:-4] + '.txt'
         annot_file_path = os.path.join(self.labels_path, annot_filename)
-        
+
         boxes = []
         labels = []
-        # tree = et.parse(annot_file_path)
-        # root = tree.getroot()
         
         # get the height and width of the image
         image_width = image.shape[1]
         image_height = image.shape[0]
 
         dictionary = read_dicts_from_file(annot_file_path)
+
         bboxes = dictionary['bboxes']
-        labels = dictionary['pedestrian_class']
-        
+        labels_ = dictionary['pedestrian_class']
+
         # box coordinates for xml files are extracted and corrected for image size given
         # for member in root.findall('object'):
-        for bbox, label in zip(bboxes, labels):
+        for bbox, label in zip(bboxes, labels_):
             # map the current object name to `classes` list to get...
             # ... the label index and append to `labels` list
             bbox_ = bbox
-            labels.append(label)
-          
-            
+
             # xmin = left corner x-coordinates
             xmin = bbox_[0][0]
             # xmax = right corner x-coordinates
@@ -127,14 +134,18 @@ class CustomDataset(Dataset):
             ymax_final = (ymax/image_height)*self.height
             
             boxes.append([xmin_final, ymin_final, xmax_final, ymax_final])
+            labels.append(label)
 
-        # bounding box to tensor
+        # bounding box to tensorDataset
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
+
         # area of the bounding boxes
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+
         # no crowd instances
         iscrowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
         # labels to tensor
+
         labels = torch.as_tensor(labels, dtype=torch.int64)
 
         # prepare the final `target` dictionary
@@ -145,6 +156,7 @@ class CustomDataset(Dataset):
         target["iscrowd"] = iscrowd
         image_id = torch.tensor([idx])
         target["image_id"] = image_id
+        
         # apply the image transforms
         if self.transforms:
             sample = self.transforms(image=image_resized,
@@ -162,13 +174,14 @@ class CustomDataset(Dataset):
 def create_train_dataset():
     train_dataset = CustomDataset(
         TRAIN_DIR_IMAGES, TRAIN_DIR_LABELS,
-        RESIZE_TO, RESIZE_TO, CLASSES, get_train_transform()
+        RESIZE_TO, RESIZE_TO, CLASSES, valid=False, transforms=get_train_transform()
     )
     return train_dataset
+
 def create_valid_dataset():
     valid_dataset = CustomDataset(
         VALID_DIR_IMAGES, VALID_DIR_LABELS, 
-        RESIZE_TO, RESIZE_TO, CLASSES, get_valid_transform()
+        RESIZE_TO, RESIZE_TO, CLASSES, valid=True, transforms=get_valid_transform()
     )
     return valid_dataset
 
@@ -198,16 +211,19 @@ def create_valid_loader(valid_dataset, num_workers=0):
 # USAGE: python datasets.py
 if __name__ == '__main__':
     # sanity check of the Dataset pipeline with sample visualization
+    print('Inside main func of datasets.py \n')
+
     dataset = CustomDataset(
-        TRAIN_DIR_IMAGES, RESIZE_TO, RESIZE_TO, CLASSES
+        TRAIN_DIR_IMAGES, TRAIN_DIR_LABELS, RESIZE_TO, RESIZE_TO, CLASSES
     )
     print(f"Number of training images: {len(dataset)}")
     
     # function to visualize a single sample
     def visualize_sample(image, target):
         for box_num in range(len(target['boxes'])):
+
             box = target['boxes'][box_num]
-            label = CLASSES[target['labels'][box_num]]
+            label = CLASSES[int(target['labels'][box_num])]
             cv2.rectangle(
                 image, 
                 (int(box[0]), int(box[1])), (int(box[2]), int(box[3])),
@@ -221,6 +237,7 @@ if __name__ == '__main__':
         cv2.waitKey(0)
         
     NUM_SAMPLES_TO_VISUALIZE = 5
-    for i in range(NUM_SAMPLES_TO_VISUALIZE):
+    for i in range(0):
         image, target = dataset[i]
+
         visualize_sample(image, target)

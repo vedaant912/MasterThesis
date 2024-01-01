@@ -1,157 +1,176 @@
-from config import (
-    DEVICE, NUM_CLASSES,
-    NUM_EPOCHS, NUM_WORKERS,
-    OUT_DIR, VISUALIZE_TRANSFORMED_IMAGES
-)
-
-from custom_utils import (
-    save_model,
-    save_train_loss_plot,
-    Averager, show_tranformed_image
-)
-
+from config import DEVICE, NUM_CLASSES, NUM_EPOCHS, OUT_DIR
+from config import VISUALIZE_TRANSFORMED_IMAGES
+from config import SAVE_PLOTS_EPOCH, SAVE_MODEL_EPOCH
 from models.fasterrcnn_resnet18 import create_model
+from custom_utils import Averager
+from tqdm.auto import tqdm
 
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-import torchvision.transforms as transforms
-import os
-import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix
-from dataset_trial import PedestrianDataset
-import matplotlib.pyplot as plt
+import time
 
-def imshow(img):
+from datasets import (
+    create_train_dataset, create_valid_dataset,
+    create_train_loader, create_valid_loader
+)
 
-    img = img / 2 + 0.5
-    plt.imshow(np.transpose(img, (1, 2, 0)))
+plt.style.use('ggplot')
 
-def previewSomeImages(loader):
+# function for running training iterations
+def train(train_data_loader, model):
+    
+    print('Training')
+    global train_itr
+    global train_loss_list
+    
+     # initialize tqdm progress bar
+    prog_bar = tqdm(train_data_loader, total=len(train_data_loader))
+    
+    for i, data in enumerate(prog_bar):
 
-    dataiter = iter(loader)
+        optimizer.zero_grad()
+        images, targets = data
+                
+        images = list(image.to(DEVICE) for image in images)
+        targets = [{k: v.to(DEVICE) for k, v in t.items()} for t in targets]
 
-    images, labels = next(dataiter)
-    images = images.numpy()
+        loss_dict = model(images, targets)
 
-    print(images[0].shape)
+        losses = sum(loss for loss in loss_dict.values())
+        loss_value = losses.item()
+        train_loss_list.append(loss_value)
 
-    fig = plt.figure(figsize=(25, 8))
+        train_loss_hist.send(loss_value)
 
-    images_to_display = 10
-    for idx in np.arange(images_to_display):
-        ax = fig.add_subplot(2, int(images_to_display/2), idx+1, xticks=[], yticks=[])
-        imshow(images[idx])
-        ax.set_title(classes[int(labels[idx])])
+        losses.backward()
+        optimizer.step()
 
-def calculate_accuracy(model, data_loader):
-    correct = 0
-    total = 0
+        train_itr += 1
+    
+        # update the loss value beside the progress bar for each iteration
+        prog_bar.set_description(desc=f"Loss: {loss_value:.4f}")
+    return train_loss_list
 
-    with torch.no_grad():
-        for data in data_loader:
-            images, labels = data
+# function for running validation iterations
+def validate(valid_data_loader, model):
+    print('Validating')
+    global val_itr
+    global val_loss_list
+    
+    # initialize tqdm progress bar
+    prog_bar = tqdm(valid_data_loader, total=len(valid_data_loader))
+    
+    for i, data in enumerate(prog_bar):
+        images, targets = data
+        
+        images = list(image.to(DEVICE) for image in images)
+        targets = [{k: v.to(DEVICE) for k, v in t.items()} for t in targets]
+        
+        with torch.no_grad():
+            loss_dict = model(images, targets)
 
-            images = images.to(DEVICE)
-            labels = labels.to(DEVICE)
-            outputs = model(images)
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
+        losses = sum(loss for loss in loss_dict.values())
+        loss_value = losses.item()
+        val_loss_list.append(loss_value)
 
-    accuracy = 100 * correct / total
+        val_loss_hist.send(loss_value)
 
-    return accuracy
+        val_itr += 1
+
+        # update the loss value beside the progress bar for each iteration
+        prog_bar.set_description(desc=f"Loss: {loss_value:.4f}")
+    return val_loss_list
 
 if __name__ == '__main__':
 
-    class_names = ['pedestrian']
-    class_names_label = {class_name:i for i, class_name in enumerate(class_names)}
+    train_dataset = create_train_dataset()
+    valid_dataset = create_valid_dataset()
+    train_loader = create_train_loader(train_dataset, 4)
+    valid_loader = create_valid_loader(valid_dataset, 4)
+    print(f'Number of training samples : {len(train_dataset)}')
+    print(f'Number of validation samples : {len(valid_dataset)}\n')
 
-    data_transform = transforms.Compose([
-        transforms.Resize((520,520)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomAffine(
-            degrees=(-5,5), translate=(0, 0.1), scale=(1.0, 1.25), shear=(-10, 10)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    ])
-
-    dataset_dir = './dataset/'
-
-    train_dir = dataset_dir + 'Train/'
-    test_dir = dataset_dir + 'Test/'
-    val_dir = dataset_dir + 'Val/Val'
-
-    train_data = PedestrianDataset(train_dir, transform=data_transform)
-    test_data = PedestrianDataset(test_dir, transform=data_transform)
-    val_data = PedestrianDataset(val_dir, transform=data_transform)
-
-    batch_size = 32
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=True)
-
-    classes = class_names
-
+    # initialize the model and move to the computation device
     model = create_model(num_classes=NUM_CLASSES)
     model = model.to(DEVICE)
+    
+    # get the model parameters
+    params = [p for p in model.parameters() if p.requires_grad]
+    
+    # define the optimizer
+    optimizer = torch.optim.SGD(params, lr=0.001, momentum=0.9, weight_decay=0.0005)
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), weight_decay=1e-4)
+    # initialize the Averager class
+    train_loss_hist = Averager()
+    val_loss_hist = Averager()
+    train_itr = 1
+    val_itr = 1
+    
+    # train and validation loss lists to store loss values of all...
+    # ... iterations till ena and plot graphs for all iterations
+    train_loss_list = []
+    val_loss_list = []
 
-    epochs = 20
-    steps = 0
-    print_every = 20
-    running_loss = 0
+    # name to save the trained model with
+    MODEL_NAME = 'model'
 
-    train_losses, validation_losses = [], []
+    
+    # whether to show transformed images from data loader or not
+    if VISUALIZE_TRANSFORMED_IMAGES:
+        from custom_utils import show_tranformed_image
+        show_tranformed_image(train_loader)
+        
 
-    for epoch in range(epochs):
-        for inputs, lables in train_loader:
+    # start the training epochs
+    for epoch in range(NUM_EPOCHS):
+        print(f"\nEPOCH {epoch+1} of {NUM_EPOCHS}")
 
-            steps += 1
+        # reset the training and validation loss histories for the current epoch
+        train_loss_hist.reset()
+        val_loss_hist.reset()
 
-            inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
+        # create two subplots, one for each, training and validation
+        figure_1, train_ax = plt.subplots()
+        figure_2, valid_ax = plt.subplots()
 
-            optimizer.zero_grad()
+        # start timer and carry out training and validation
+        start = time.time()
 
-            outputs = model.forward(inputs)
-            loss = criterion(outputs, labels)
+        train_loss = train(train_loader, model)
+        val_loss = validate(valid_loader, model)
+        print(f"Epoch #{epoch} train loss: {train_loss_hist.value:.3f}")   
+        print(f"Epoch #{epoch} validation loss: {val_loss_hist.value:.3f}")   
+        
+        end = time.time()
+        print(f"Took {((end - start) / 60):.3f} minutes for epoch {epoch}")
 
-            loss.backward()
-            optimizer.step()
+        if (epoch+1) % SAVE_MODEL_EPOCH == 0: # save model after every n epochs
+            torch.save(model.state_dict(), f"{OUT_DIR}/model{epoch+1}.pth")
+            print('SAVING MODEL COMPLETE...\n')
+        
+        if (epoch+1) % SAVE_PLOTS_EPOCH == 0: # save loss plots after n epochs
+            train_ax.plot(train_loss, color='blue')
+            train_ax.set_xlabel('iterations')
+            train_ax.set_ylabel('train loss')
+            valid_ax.plot(val_loss, color='red')
+            valid_ax.set_xlabel('iterations')
+            valid_ax.set_ylabel('validation loss')
+            figure_1.savefig(f"{OUT_DIR}/train_loss_{epoch+1}.png")
+            figure_2.savefig(f"{OUT_DIR}/valid_loss_{epoch+1}.png")
+            print('SAVING PLOTS COMPLETE...')
+        
+        if (epoch+1) == NUM_EPOCHS: # save loss plots and model once at the end
+            train_ax.plot(train_loss, color='blue')
+            train_ax.set_xlabel('iterations')
+            train_ax.set_ylabel('train loss')
+            valid_ax.plot(val_loss, color='red')
+            valid_ax.set_xlabel('iterations')
+            valid_ax.set_ylabel('validation loss')
+            figure_1.savefig(f"{OUT_DIR}/train_loss_{epoch+1}.png")
+            figure_2.savefig(f"{OUT_DIR}/valid_loss_{epoch+1}.png")
 
-            running_loss += loss.item()
-
-            if steps % print_every == 0:
-                validation_loss = 0
-                accuracy = 0
-                model.eval()
-
-                with torch.no_grad():
-                    for inputs, labels in val_loader:
-                        inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
-                        logps = model.forward(inputs)
-
-                        batch_loss = criterion(logps, labels)
-
-                        validation_loss += batch_loss.item()
-
-                        ps = torch.exp(logps)
-                        top_p, top_class = ps.topk(1, dim=1)
-                        equals = top_class == labels.view(*top_class.shape)
-                        accuracy += torch.mean(equals.type(torch.FloatTensor)).item()
-
-                model.train()
-
-                train_losses.append(running_loss/len(train_loader))
-                validation_losses.append(validation_loss/len(val_loader))
-
-                print("Epoch: {}/{}.. ".format(epoch+1, epochs),
-              "Training Loss: {:.3f}.. ".format(running_loss/len(train_loader)),
-              "Validation Loss: {:.3f}.. ".format(validation_loss/len(val_loader)),
-              "Validation Accuracy: {:.3f}".format(accuracy/len(val_loader)))
-            
-                running_loss = 0
+            torch.save(model.state_dict(), f"{OUT_DIR}/model{epoch+1}.pth")
+        
+        plt.close('all')
+        # sleep for 5 seconds after each epoch
+        time.sleep(5)
