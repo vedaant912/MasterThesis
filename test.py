@@ -13,18 +13,24 @@ from config import (
 )
 
 import matplotlib.pyplot as plt 
+from models.fasterrcnn_resnet18 import create_model
+
 
 classes = ['background', 'pedestrian']
 
 # Code for importing model
-model = torch.load('./outputs/last_model.pth')
+model = create_model(num_classes=NUM_CLASSES)
+
+checkpoint = torch.load('./outputs/last_model.pth')
+model.load_state_dict(checkpoint['model_state_dict'])
 
 ##########################
 
 model.eval()
+model.to(DEVICE)
 torch.cuda.empty_cache()
 
-test_dataset = create_valid_dataset()
+test_dataset = create_train_dataset()
 
 img, _ = test_dataset[5]
 img_int = torch.tensor(img*255, dtype=torch.uint8)
@@ -35,7 +41,8 @@ with torch.no_grad():
 
 fig = plt.figure(figsize=(14, 10))
 
-plt.imshow(draw_bounding_boxes(img_int,
+plt.imshow(draw_bounding_boxes(img_int, 
                                pred['boxes'][pred['scores']>0.8],
-                               [classes[i] for i in pred['labels'][pred['scores']>0.8].tolist()], width=4
-                               ).permute(1, 2, 0))
+                               [classes[i] for i in pred['labels'][pred['scores']>0.8].tolist()], 
+                               width=4).permute(1, 2, 0)
+                        )

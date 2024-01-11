@@ -48,6 +48,13 @@ if __name__ == '__main__':
 
     # Initialize the model and move to the computation device.
     model = create_model(num_classes=NUM_CLASSES)
+
+    model_load = True
+    if model_load:
+        print('Loading the trained model....')
+        checkpoint = torch.load('./outputs/last_model.pth')
+        model.load_state_dict(checkpoint['model_state_dict'])
+
     model = model.to(DEVICE)
 
     # Total parameters and trainable parameters.

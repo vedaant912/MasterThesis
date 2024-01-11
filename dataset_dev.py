@@ -119,6 +119,18 @@ def create_valid_dataset():
                             )
     return valid_dataset
 
+def create_test_dataset():
+    valid_data_dir = './input/test_images'
+    coco_annotations_file="./test.json"
+    coco_images_dir="./input/test_images"
+
+    test_dataset = CustomDataset(root=valid_data_dir,
+                            coco_annotations_file=coco_annotations_file,
+                            coco_images_dir=coco_images_dir,
+                            transforms=get_transform()
+                            )
+    return test_dataset
+
 def create_train_loader(train_dataset, num_workers=0):
     train_loader = DataLoader(
         train_dataset,
