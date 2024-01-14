@@ -9,6 +9,40 @@ from .coco_eval import CocoEvaluator
 from .coco_utils import get_coco_api_from_dataset
 from tqdm import tqdm
 
+def validate_one_epoch(
+    model, 
+    data_loader, 
+    device,
+    scaler=None,
+):
+
+    # List to store batch losses.
+    batch_loss_list = []
+
+    with torch.no_grad():
+        step_counter = 0
+        for images, targets in data_loader:
+            images = list(image.to(device) for image in images)
+            targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+
+            with torch.cuda.amp.autocast(enabled=scaler is not None):
+                loss_dict = model(images, targets)
+                losses = sum(loss for loss in loss_dict.values())
+
+            # reduce losses over all GPUs for logging purposes
+            loss_dict_reduced = utils.reduce_dict(loss_dict)
+            losses_reduced = sum(loss for loss in loss_dict_reduced.values())
+
+            loss_value = losses_reduced.item()
+
+
+            batch_loss_list.append(loss_value)
+
+
+
+    return batch_loss_list
+
+
 def train_one_epoch(
     model, 
     optimizer, 

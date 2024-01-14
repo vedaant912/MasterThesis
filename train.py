@@ -1,4 +1,3 @@
-
 from config import (
     DEVICE, NUM_CLASSES,
     NUM_EPOCHS, NUM_WORKERS,
@@ -11,10 +10,10 @@ from dataset_dev import (
 )
 
 from utils.engine import (
-     train_one_epoch, evaluate
+     train_one_epoch, evaluate, validate_one_epoch
 )
 
-from models.fasterrcnn_resnet18 import create_model
+from models.fasterrcnn_resnet18 import create_model_resnet18, create_model_resnet34
 
 from custom_utils import (
     save_model,
@@ -34,8 +33,6 @@ if __name__ == '__main__':
     print(f'Number of training samples : {len(train_dataset)}')
     print(f'Number of validation samples : {len(valid_dataset)}\n')
 
-    
-    
     if VISUALIZE_TRANSFORMED_IMAGES:
         show_tranformed_image(train_loader)
 
@@ -47,12 +44,12 @@ if __name__ == '__main__':
     train_loss_list = []
 
     # Initialize the model and move to the computation device.
-    model = create_model(num_classes=NUM_CLASSES)
+    model = create_model_resnet34(num_classes=NUM_CLASSES)
 
-    model_load = True
+    model_load = False
     if model_load:
         print('Loading the trained model....')
-        checkpoint = torch.load('./outputs/last_model.pth')
+        checkpoint = torch.load('./outputs/last_model_1.pth')
         model.load_state_dict(checkpoint['model_state_dict'])
 
     model = model.to(DEVICE)
@@ -82,6 +79,10 @@ if __name__ == '__main__':
         verbose=True
     )
 
+    early_stopping_patience = 5
+    early_stopping_counter = 0
+    best_val_loss = float('inf')
+
     for epoch in range(NUM_EPOCHS):
         train_loss_hist.reset()
 
@@ -101,8 +102,27 @@ if __name__ == '__main__':
         # Add the current epoch's batch-wise losses to the 'train_loss_list'
         train_loss_list.extend(batch_loss_list)
 
+        validate_loss_list = validate_one_epoch(model,
+            optimizer,
+            train_loader,
+            DEVICE,
+        )
+
+        mean_valid_loss = sum(validate_loss_list)/len(validate_loss_list)
+        if mean_valid_loss < best_val_loss:
+            best_val_loss = mean_valid_loss
+            early_stopping_counter = 0
+        else:
+            early_stopping_counter += 1
+
+
+
         # Save the current epoch model.
         save_model(OUT_DIR, epoch, model, optimizer)
 
         # Save loss plot.
         save_train_loss_plot(OUT_DIR, train_loss_list)
+
+        if early_stopping_counter >= early_stopping_patience:
+            print(f'Early stopping after {epoch + 1} epochs.')
+            break
