@@ -12,7 +12,7 @@ This work requires different components which are listed below:
 2. Stable-baselines3 library for Reinforcement Learning Algorithm (SAC)
 3. OpenAI Gym to create Custom Environment (CarlaEnv)
 
-[CARLA](http://carla.org/) (0.9.13 version) is used in this project. Town02 is used in this project as the urban environment.
+[CARLA](http://carla.org/) (0.9.13 version) is used in this project. Which is available from [CARLA Releases](https://github.com/carla-simulator/carla/releases). Town02 is used in this project as the urban environment. 
 
 ## Usage
 
