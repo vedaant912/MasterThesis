@@ -43,8 +43,22 @@ run.sh consists the command to start the training and all the possible arguments
 ```
 #!/bin/bash
 
-python train_sac.py --model-name ./Experiment_Results/model_1 --width 520 --height 520 --repeat-action 4 --start-location random --sensor rgb --episode-length 600 --fps 10 --load False --create_pedestrian True
+python train_sac.py --model-name ./Experiment_Results/model_1 --width 520 --height 520 --start-location random --sensor rgb --episode-length 600 --fps 10 --load False --create_pedestrian True
 ```
+
+Each argument is explained in the following table:
+
+|Argument               |Description                                                                        |
+|-----------------------|-----------------------------------------------------------------------------------|
+|model-name             |Model saved with name provided in this argument.                                   |
+|width                  |Width of the image                                                                 |
+|height                 |Height of the image                                                                |
+|start-location         |To choose between 'random' and 'highway' location as spawn points.                 |
+|sensor                 |To choose between 'rgb' and 'semantic' sensor that spawns on the vehicle.          |
+|episode-length         |Maximum number of steps that are allowed to be taken by the vehicle in an episode. |
+|fps                    |                                                                                   |
+|load                   |Set to `True` to continue the training from a checkpoint.                          |
+|create-pedestrian      |Set to `True` to spawn pedestrians in the carla environement.                      |
 
 
 
