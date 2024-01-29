@@ -56,10 +56,11 @@ Each argument is explained in the following table:
 |start-location         |To choose between 'random' and 'highway' location as spawn points.                 |
 |sensor                 |To choose between 'rgb' and 'semantic' sensor that spawns on the vehicle.          |
 |episode-length         |Maximum number of steps that are allowed to be taken by the vehicle in an episode. |
-|fps                    |                                                                                   |
+|fps                    |fps of Carla Env                                                                   |
 |load                   |Set to `True` to continue the training from a checkpoint.                          |
 |create-pedestrian      |Set to `True` to spawn pedestrians in the carla environement.                      |
-
+|preview                |Set to `True` to get a preview of the current environment as seen by the vehicle.  |
+|seed                   |Random seed for initialization.
 
 
 ## Data
