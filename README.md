@@ -14,24 +14,39 @@ This work requires different components which are listed below:
 
 [CARLA](http://carla.org/) (0.9.13 version) is used in this project. Which is available from [CARLA Releases](https://github.com/carla-simulator/carla/releases). Town02 is used in this project as the urban environment. 
 
-For setting up, clone the repository and make sure to have Python version > 3.7. To create a new environment and install the dependencies execute the one fo the following command:
-
-```
-conda create --name <env_name> --file requirements.txt
-```
+For setting up, clone the repository and make sure to have Python version > 3.7. To create a new environment and install the dependencies execute the one following command:
 
 ```
 # using pip
 pip install -r requirements.txt
 
 # using conda
+conda create --name <env_name> --file requirements.txt
+```
+
+```
 conda env create -f environment.yml
 ```
 
 
 ## Usage
 
-Provide instructions on how to use the code in your repository, including any necessary steps for setting up the environment and running the code.
+### Training an Agent
+In order to train a new agent or continue training an agent, use the following command:
+
+```
+bash run.sh
+```
+
+run.sh consists the command to start the training and all the possible arguments that can be provided for training according to the requirements. One such instance is as below:
+
+```
+#!/bin/bash
+
+python train_sac.py --model-name ./Experiment_Results/model_1 --width 520 --height 520 --repeat-action 4 --start-location random --sensor rgb --episode-length 600 --fps 10 --load False --create_pedestrian True
+```
+
+
 
 ## Data
 
