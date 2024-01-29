@@ -14,6 +14,21 @@ This work requires different components which are listed below:
 
 [CARLA](http://carla.org/) (0.9.13 version) is used in this project. Which is available from [CARLA Releases](https://github.com/carla-simulator/carla/releases). Town02 is used in this project as the urban environment. 
 
+For setting up, clone the repository and make sure to have Python version > 3.7. To create a new environment and install the dependencies execute the one fo the following command:
+
+```
+conda create --name <env_name> --file requirements.txt
+```
+
+```
+# using pip
+pip install -r requirements.txt
+
+# using conda
+conda env create -f environment.yml
+```
+
+
 ## Usage
 
 Provide instructions on how to use the code in your repository, including any necessary steps for setting up the environment and running the code.
