@@ -66,6 +66,8 @@ def setup(
     
     
     server = subprocess.Popen(['/home/joshi/Carla/CarlaUE4.sh',"-RenderOffScreen"])
+
+    #server = subprocess.Popen(['/home/joshi/Carla/CarlaUE4.sh'])
     #server = subprocess.Popen(f'DISPLAY= /home/joshi/Carla/CarlaUE4.sh' + f" -quality-level=Epic ", stderr=subprocess.STDOUT, preexec_fn=os.setsid, env=env, shell=True)
     atexit.register(os.killpg, server.pid, signal.SIGKILL)
     time.sleep(server_timestop)

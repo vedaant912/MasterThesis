@@ -68,14 +68,13 @@ class CarlaEnv(gym.Env):
         self.walker_list_controller = list()
 
         self.TIME_STEPS = 0
-
-        self.collision_counter = 0 
-        self.distance_from_center_counter = 0
-        self.slow_speed_timer_counter = 0
-        self.pedestrian_counter = 0
         
         if self.create_pedestrian_flag:
-            self.create_pedestrians()
+            self.create_pedestrians(200)
+            self.total_pedestrian = len(self.world.get_actors().filter('walker.pedestrian.*'))
+
+        self.first = True
+        self.constant_location = None
 
 
     @property
@@ -116,6 +115,17 @@ class CarlaEnv(gym.Env):
         self._destroy_agents()
         
         logging.debug("Resetting environment")
+
+        # Spawn pedestrians when time_steps reaches 1M.
+        # if self.TIME_STEPS > 500_000:
+        #     self.create_pedestrians()
+
+        # total_pedestrian_remaining = len(self.world.get_actors().filter('walker.pedestrian.*'))
+        
+        # if total_pedestrian_remaining < 100:
+        #     print(total_pedestrian_remaining)
+        #     self.create_pedestrians(self.total_pedestrian - total_pedestrian_remaining)
+
         
         self.collision_hist = []
         self.lane_invasion_hist = []
@@ -127,8 +137,8 @@ class CarlaEnv(gym.Env):
         self.dist_from_start = 0
         self.speed = 0
         self.distance_from_center = float(0.0)
-        self.max_distance_from_center = 2
-        self.max_speed = 25.0
+        self.max_distance_from_center = 4
+        self.max_speed = 30.0
         self.min_speed = 10.0
         self.speed_accum = float(0.0)
         self.target_speed = 20.0
@@ -161,8 +171,11 @@ class CarlaEnv(gym.Env):
             try:
                 # Get random spot from a list from predefined spots and try to spawn a car there
                 self.start_transform = self._get_start_transform()
+                if self.first:
+                    self.constant_location = self.start_transform
+                    self.first = False
                 self.curr_loc = self.start_transform.location
-                self.vehicle = self.world.spawn_actor(self.lincoln, self.start_transform)
+                self.vehicle = self.world.spawn_actor(self.lincoln, self.constant_location)
                 break
             except Exception as e:
                 logging.error('Error carla 141 {}'.format(str(e)))
@@ -217,7 +230,7 @@ class CarlaEnv(gym.Env):
             self.actor_list.append(self.preview_sensor)
 
         # Here's some workarounds.
-        self.vehicle.apply_control(carla.VehicleControl(throttle=1.0, brake=1.0))
+        self.vehicle.apply_control(carla.VehicleControl(throttle=1.0, brake=0.0))
         time.sleep(4)
 
         # Collision history is a list callback is going to append to (we brake simulation on a collision)
@@ -251,47 +264,48 @@ class CarlaEnv(gym.Env):
 
         # WAYPOINT DATA
         if self.fresh_start:
-                self.current_waypoint_index = 0
-                # Waypoint nearby angle and distance from it
-                print('Creating Waypoints . . . . ')
-                self.route_waypoints = list()
-                self.waypoint = self.map.get_waypoint(self.vehicle.get_location(), project_to_road=True, lane_type=(carla.LaneType.Driving))
-                current_waypoint = self.waypoint
-                self.route_waypoints.append(current_waypoint)
+            
+            self.current_waypoint_index = 0
+            # Waypoint nearby angle and distance from it
+            print('Creating Waypoints . . . . ')
+            self.route_waypoints = list()
+            self.waypoint = self.map.get_waypoint(self.vehicle.get_location(), project_to_road=True, lane_type=(carla.LaneType.Driving))
+            current_waypoint = self.waypoint
+            self.route_waypoints.append(current_waypoint)
 
-                for x in range(self.total_distance):
-                    if self.map.name == "Town07":
-                        if x < 650:
-                            next_waypoint = current_waypoint.next(1.0)[0]
-                        else:
-                            next_waypoint = current_waypoint.next(1.0)[-1]
-                    elif self.map.name == "Town02":
-                        if x < 650:
-                            next_waypoint = current_waypoint.next(1.0)[-1]
-                        else:
-                            next_waypoint = current_waypoint.next(1.0)[0]
+            for x in range(650):
+                if self.map.name == "Town07":
+                    if x < 650:
+                        next_waypoint = current_waypoint.next(1.0)[0]
+                    else:
+                        next_waypoint = current_waypoint.next(1.0)[-1]
+                elif self.map.name == "Town02":
+                    if x < 650:
+                        next_waypoint = current_waypoint.next(1.0)[-1]
                     else:
                         next_waypoint = current_waypoint.next(1.0)[0]
-                    self.route_waypoints.append(next_waypoint)
-                    current_waypoint = next_waypoint
+                else:
+                    next_waypoint = current_waypoint.next(1.0)[0]
+                self.route_waypoints.append(next_waypoint)
+                current_waypoint = next_waypoint
 
-        #         ###################### TRIAL CODE #############################
+            ###################### TRIAL CODE #############################
 
-        #         # waypoint_radius = 0.2  # Adjust as needed
-        #         # waypoint_color = carla.Color(r=255, g=0, b=0)
+            waypoint_radius = 0.2  # Adjust as needed
+            waypoint_color = carla.Color(r=255, g=0, b=0)
 
-        #         # self.waypoint_markers = []  # List to store waypoint markers
+            self.waypoint_markers = []  # List to store waypoint markers
 
-        #         # for waypoint in self.route_waypoints:
-        #         #     waypoint_location = waypoint.transform.location
-        #         #     waypoint_marker = self.world.debug.draw_point(
-        #         #         waypoint_location,
-        #         #         size=waypoint_radius,
-        #         #         color=waypoint_color,
-        #         #         life_time=5  # Set to 0 for permanent markers, or adjust as needed
-        #         #     )    #logging.debug("Failed to connect to CARLA after {} attempts".format(num_max_restarts))
+            for waypoint in self.route_waypoints:
+                waypoint_location = waypoint.transform.location
+                waypoint_marker = self.world.debug.draw_point(
+                    waypoint_location,
+                    size=waypoint_radius,
+                    color=waypoint_color,
+                    life_time=100 # Set to 0 for permanent markers, or adjust as needed
+                )    #logging.debug("Failed to connect to CARLA after {} attempts".format(num_max_restarts))
 
-                self.current_waypoint_index = self.checkpoint_waypoint_index
+            self.current_waypoint_index = self.checkpoint_waypoint_index
         
         return image
 
@@ -324,15 +338,19 @@ class CarlaEnv(gym.Env):
         # Apply control to the vehicle based on an action
         if self.action_type == 'continuous':
             
-            throttle = float(action[0]) if action[0] > 0 else 0.0
-            brake = float(-action[0]) if action[0] < 0 else 0.0
+            # throttle = float(action[0]) if action[0] > 0 else 0.0
+            # brake = float(-action[0]) if action[0] < 0 else 0.0
+            throttle = float(np.clip(action[0], 0, 1))
+            brake = float(np.abs(np.clip(action[0], -1, 0)))
+
             steer = action[1]
             steer = max(min(steer, 1.0), -1.0)
 
-            
-            self.vehicle.apply_control(carla.VehicleControl(steer=self.previous_steer*0.9 + steer*0.1, 
-                                                            throttle=self.throttle*0.9 + throttle*0.1,
-                                                            brake=self.brake*0.9 + 0.1*brake,
+            print(throttle, brake, steer)
+
+            self.vehicle.apply_control(carla.VehicleControl(steer=self.previous_steer*0 + steer*1, 
+                                                            throttle=self.throttle*0 + throttle*1,
+                                                            brake=self.brake*0 + 0*brake,
                                                     ))
             
             self.previous_steer = steer
@@ -348,7 +366,7 @@ class CarlaEnv(gym.Env):
             self.throttle = 1.0
             
         loc = self.vehicle.get_location()
-        new_dist_from_start = loc.distance(self.start_transform.location)
+        new_dist_from_start = loc.distance(self.constant_location.location)
         square_dist_diff = new_dist_from_start ** 2 - self.dist_from_start ** 2
         self.dist_from_start = new_dist_from_start
 
@@ -397,10 +415,8 @@ class CarlaEnv(gym.Env):
         # Calculate deviation from center of the lane
         self.current_waypoint = self.route_waypoints[ self.current_waypoint_index % len(self.route_waypoints) ]
         self.next_waypoint =  self.route_waypoints[(self.current_waypoint_index+1) % len(self.route_waypoints)]
-        self.distance_from_center = self.distance_to_line(self.vector(self.current_waypoint.transform.location),self.vector(self.next_waypoint.transform.location),self.vector(self.location))
+        #self.distance_from_center = self.distance_to_line(self.vector(self.current_waypoint.transform.location),self.vector(self.next_waypoint.transform.location),self.vector(self.location))
         self.center_lane_deviation += self.distance_from_center
-
-        # self.center_lane_deviation += self.dis_to_left if self.dis_to_left > 0 else self.dis_to_right
 
         # Get angle difference between closest waypoint and vehicle forward vector
         fwd = self.vector(self.vehicle.get_velocity())
@@ -420,7 +436,9 @@ class CarlaEnv(gym.Env):
         self.low_speed_timer_flag = False
 
         if self.speed < 1:
+
             if self.speed_time_flag:
+
                 self.episode_start_time = time.time()
                 self.speed_time_flag = False
             else:
@@ -443,9 +461,9 @@ class CarlaEnv(gym.Env):
             if self.dist_from_start > self.max_distance_covered:
                 self.max_distance_covered = self.dist_from_start
                 print('New maximum distance : ', str(self.max_distance_covered))
-                self.reward += 20*self.dist_from_start
+                self.reward += 50
             else:
-                self.reward = self.reward + 10*self.dist_from_start
+                self.reward = self.reward + self.dist_from_start
             
             self.fresh_start = True
 
@@ -483,7 +501,6 @@ class CarlaEnv(gym.Env):
         print('Lane Invasion     : ',lane_invasion_flag)
         print('Pedestrian Near   : ',pedestrian_flag)
         print('Low Speed Timer   : ',low_speed_timer)
-        print('Collision , Dist_From_center, Low Timer :'+str(self.collision_counter)+' ,'+str(self.distance_from_center_counter)+' ,'+str(self.slow_speed_timer_counter))
 
     def close(self):
         logging.info("Closes the CARLA server with process PID {}".format(self.server.pid))
@@ -620,21 +637,15 @@ class CarlaEnv(gym.Env):
     # -------------------------------------------------
     # Creating and Spawning Pedestrians in our world |
     # -------------------------------------------------
-    def create_pedestrians(self):
+    def create_pedestrians(self, n=200):
         # Our code for this method has been broken into 3 sections.
-
-        with open('shuffled_blueprints_train.txt','r') as file:
-            train_list_blueprint = [line.strip() for line in file.readlines()]
-        
-        shuffled_blueprints = [self.world.get_blueprint_library().find(id) for id in train_list_blueprint]
-        
 
         # 1. Getting the available spawn points in  our world.
         # Random Spawn locations for the walker
         print('Inside Create pedestrian!!!')
         self.world.tick()
         walker_spawn_points = []
-        for i in range(230):
+        for i in range(n):
             spawn_point_ = carla.Transform()
             loc = self.world.get_random_location_from_navigation()
             if (loc != None):
@@ -646,9 +657,8 @@ class CarlaEnv(gym.Env):
         # 2. We spawn the walker actor and ai controller
         # Also set their respective attributes
         for spawn_point_ in walker_spawn_points:
-            # walker_bp = random.choice(self.blueprint_library.filter('walker.pedestrian.*'))
-            walker_bp = random.choice(shuffled_blueprints)
-            
+            walker_bp = random.choice(
+                self.blueprint_library.filter('walker.pedestrian.*'))
             walker_controller_bp = self.blueprint_library.find(
                 'controller.ai.walker')
             # Walkers are made visible in the simulation
@@ -670,8 +680,6 @@ class CarlaEnv(gym.Env):
         all_actors = self.world.get_actors(self.walker_list_id)
 
         print('Spawned !!!')
-        print(len(self.walker_list))
-
 
         self.world.tick()
 

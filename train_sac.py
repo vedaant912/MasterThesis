@@ -5,12 +5,14 @@ from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack
 from carla_env import CarlaEnv
+#from carla_env_single_path import CarlaEnv
 import argparse
 from utils import TensorboardCallback, VideoRecorderCallback, lr_schedule
-from custom_model import CustomCNN
+from custom_model import CustomCNN, CustomCNN_resnet34
 
 import torchvision.models as models
 
+from tqdm import tqdm
 
 def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, start_transform_type, sensors, 
          enable_preview, steps_per_episode, create_pedestrian_flag, seed=7, action_type='continuous'):
@@ -21,21 +23,24 @@ def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, 
     # env = DummyVecEnv([lambda: env])
     # env = VecFrameStack(env, 4)
     
-    try:
+    try:    
         if load_model:
-            model = SAC.load(
+            
+            model = SAC.load(   
                 model_name, 
                 env, 
                 action_noise=NormalActionNoise(mean=np.array([0.3, 0.0]), sigma=np.array([0.5, 0.1])))
             
-            model.load_replay_buffer('./sac_model_resnet18/rl_model_pedestrian_50000_steps/rl_model_pedestrian_70000_steps/rl_model_pedestrian_replay_buffer_500000_steps.pkl')
+            print('Model is being loaded !!!')
+            
+            model.load_replay_buffer('./Experiment_Results/Experiment_13/rl_model_pedestrian_140000_steps/rl_model_pedestrian_180000_steps/rl_model_pedestrian_260000_steps/rl_model_pedestrian_320000_steps/rl_model_pedestrian_replay_buffer_380000_steps.pkl')
 
         else:
             
             policy_kwargs = dict(
-                features_extractor_class=CustomCNN,
-                features_extractor_kwargs=dict(features_dim=1),
-                share_features_extractor=False
+                features_extractor_class=CustomCNN_resnet34,
+                features_extractor_kwargs=dict(features_dim=128),
+                share_features_extractor=False,
             )
         
             model = SAC(    
@@ -49,7 +54,7 @@ def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, 
                 ent_coef='auto',
                 train_freq = 64,
                 device='cuda', 
-                tensorboard_log='./pedestrian_logs',
+                tensorboard_log='./Experiment_Results/Experiment_13/logs',
                 action_noise=NormalActionNoise(mean=np.array([0.3, 0]), sigma=np.array([0.5, 0.1])),
                 gamma=0.98,
                 tau=0.02,
@@ -58,7 +63,7 @@ def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, 
         
 
         checkpoint_callback = CheckpointCallback(
-            save_freq = 10_000,
+            save_freq = 20_000,
             save_path='./' + model_name + '/',
             name_prefix='rl_model_pedestrian',
             save_replay_buffer=True,
@@ -70,7 +75,9 @@ def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, 
         model.learn(total_timesteps=500_000,
                     log_interval=10,
                     callback=[TensorboardCallback(1), checkpoint_callback],
-                    tb_log_name=model_name
+                    tb_log_name=model_name,
+                    progress_bar=True, 
+                    reset_num_timesteps=False
                 )
         
         model.save(model_name)
@@ -80,6 +87,7 @@ def main(model_name, load_model, town, fps, im_width, im_height, repeat_action, 
         env.close()
 
 if __name__ == "__main__":
+    
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model-name', help='name of model when saving')
     parser.add_argument('--load', type=bool, help='whether to load existing model')
@@ -105,7 +113,7 @@ if __name__ == "__main__":
     repeat_action = args.repeat_action
     start_transform_type = args.start_location
     sensors = args.sensor
-    enable_preview = False
+    enable_preview = True
     steps_per_episode = args.episode_length
     seed = args.seed
     create_pedestrian_flag = args.create_pedestrian

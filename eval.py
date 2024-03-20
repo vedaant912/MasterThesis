@@ -13,8 +13,8 @@ import logging
 def main(model_name):
     town = 'Town02'
     fps = 10
-    im_width = 240
-    im_height = 240
+    im_width = 520
+    im_height = 520
     repeat_action = 4
     start_transform_type = 'random'
     sensors = 'rgb'
@@ -23,17 +23,20 @@ def main(model_name):
     steps_per_episode = 600
 
     env = CarlaEnv(town, fps, im_width, im_height, repeat_action, start_transform_type, sensors,
-                   action_type, enable_preview, steps_per_episode, playing=False)
+                   action_type, enable_preview, steps_per_episode, create_pedestrian_flag=True, playing=False)
+    
 
     try:
-        model = SAC.load('./pedestrian/rl_model_110000_steps')
+        model = SAC.load('./rl_model_pedestrian_100000_steps')
+        model.load_replay_buffer('./rl_model_pedestrian_replay_buffer_100000_steps.pkl')
 
         logging.info('Loading the environment . . .')
         obs = env.reset()
+
         while True:
             action, _states = model.predict(obs)
             obs, reward, done, info = env.step(action)
-            print(reward, info)
+            # print(reward, info)
             if done:
                 obs = env.reset()
     finally:
