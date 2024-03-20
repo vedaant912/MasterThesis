@@ -96,9 +96,9 @@ def get_transform():
     return torchvision.transforms.Compose(custom_transforms)
 
 def create_train_dataset():
-    train_data_dir = './input/train_images'
-    coco_annotations_file="./train.json"
-    coco_images_dir="./input/train_images"
+    train_data_dir = './input/all_pedestrians/train_images'
+    coco_annotations_file="./input/all_pedestrians/train.json"
+    coco_images_dir="./input/all_pedestrians/train_images"
 
     train_dataset = CustomDataset(root=train_data_dir,
                             coco_annotations_file=coco_annotations_file,
@@ -108,9 +108,9 @@ def create_train_dataset():
     return train_dataset
 
 def create_valid_dataset():
-    valid_data_dir = './input/valid_images'
-    coco_annotations_file="./valid.json"
-    coco_images_dir="./input/valid_images"
+    valid_data_dir = './input/all_pedestrians/valid_images'
+    coco_annotations_file="./input/all_pedestrians/valid.json"
+    coco_images_dir="./input/all_pedestrians/valid_images"
 
     valid_dataset = CustomDataset(root=valid_data_dir,
                             coco_annotations_file=coco_annotations_file,
@@ -120,11 +120,11 @@ def create_valid_dataset():
     return valid_dataset
 
 def create_test_dataset():
-    valid_data_dir = './input/test_images'
-    coco_annotations_file="./test.json"
-    coco_images_dir="./input/test_images"
+    test_data_dir = './input/all_pedestrians/test_images'
+    coco_annotations_file="./input/all_pedestrians/test_temp.json"
+    coco_images_dir="./input/all_pedestrians/test_images"
 
-    test_dataset = CustomDataset(root=valid_data_dir,
+    test_dataset = CustomDataset(root=test_data_dir,
                             coco_annotations_file=coco_annotations_file,
                             coco_images_dir=coco_images_dir,
                             transforms=get_transform()
@@ -150,6 +150,16 @@ def create_valid_loader(valid_dataset, num_workers=0):
         collate_fn=collate_fn
     )
     return valid_loader
+
+def create_test_loader(test_dataset, num_workers=0):
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=collate_fn
+    )
+    return test_loader
 
 
 if __name__ == '__main__':

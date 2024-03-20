@@ -47,11 +47,11 @@ if __name__ == '__main__':
     # Initialize the model and move to the computation device.
     model = create_model_resnet34(num_classes=NUM_CLASSES)
 
-    # model_load = False
-    # if model_load:
-    #     print('Loading the trained model....')
-    #     checkpoint = torch.load('./outputs/last_model_1.pth')
-    #     model.load_state_dict(checkpoint['model_state_dict'])
+    model_load = True
+    if model_load:
+        print('Loading the trained model....')
+        checkpoint = torch.load('./outputs/last_model.pth')
+        model.load_state_dict(checkpoint['model_state_dict'])
 
     model = model.to(DEVICE)
 
@@ -80,10 +80,6 @@ if __name__ == '__main__':
         verbose=True
     )
 
-    early_stopping_patience = 10
-    early_stopping_counter = 0
-    best_val_metric = -1
-
     for epoch in range(NUM_EPOCHS):
         train_loss_hist.reset()
 
@@ -99,7 +95,7 @@ if __name__ == '__main__':
         )
 
         evaluator = evaluate(model, valid_loader, device=DEVICE)
-        
+        print(sum(batch_loss_list) / len(batch_loss_list))
         # Add the current epoch's batch-wise losses to the 'train_loss_list'
         train_loss_list.extend(batch_loss_list)
         
@@ -107,23 +103,3 @@ if __name__ == '__main__':
         save_model(OUT_DIR, epoch, model, optimizer)
         # Save loss plot.
         save_train_loss_plot(OUT_DIR, train_loss_list)
-
-        items_dict = evaluator.coco_eval.items()
-        for a,b in items_dict:
-            stats = b.stats
-
-        AP_50 = stats[1]
-
-        if AP_50 > best_val_metric:
-            best_val_metric = AP_50
-            early_stopping_counter = 0
-        else:
-            early_stopping_counter += 1
-
-        # Print training/validation information
-        print(f'Epoch {epoch + 1}/{NUM_EPOCHS}, Validation AP_50: {AP_50:.4f}')
-
-        # Check if early stopping criteria are met
-        if early_stopping_counter >= early_stopping_patience:
-            print(f'Early stopping after {epoch + 1} epochs.')
-            break

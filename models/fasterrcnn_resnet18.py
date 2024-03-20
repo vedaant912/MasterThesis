@@ -68,16 +68,18 @@ def create_model_resnet18(num_classes):
 
 def create_model_resnet34(num_classes):
 
-    load = False
+    load = True
     # Import pretrained model from Reinforcement Learning and create the backbone using those layers    
     if load:
-        model = SAC.load('./models/rl_model_pedestrian_200000_steps')
+        model = SAC.load('./models/rl_model_pedestrian_2160000_steps')
+        print('################### RL Pretrained Model created ################################')
+        
         critic_model_features_extractor = model.critic.features_extractor.resnet
 
         conv1 = critic_model_features_extractor[0]
         bn1 = critic_model_features_extractor[1]
-        resnet18_relu = critic_model_features_extractor[2]
-        resnet18_max_pool = critic_model_features_extractor[3]
+        resnet34_relu = critic_model_features_extractor[2]
+        resnet34_max_pool = critic_model_features_extractor[3]
         layer1 = critic_model_features_extractor[4]
         layer2 = critic_model_features_extractor[5]
         layer3 = critic_model_features_extractor[6]
@@ -86,14 +88,14 @@ def create_model_resnet34(num_classes):
 
         print("Resnet34 model create.")
 
-        conv1 = torchvision.models.resnet34(pretrained=True).conv1
-        bn1 = torchvision.models.resnet34(pretrained=True).bn1
-        resnet34_relu = torchvision.models.resnet34(pretrained=True).relu
-        resnet34_max_pool = torchvision.models.resnet34(pretrained=True).maxpool
-        layer1 = torchvision.models.resnet34(pretrained=True).layer1
-        layer2 = torchvision.models.resnet34(pretrained=True).layer2
-        layer3 = torchvision.models.resnet34(pretrained=True).layer3
-        layer4 = torchvision.models.resnet34(pretrained=True).layer4
+        conv1 = torchvision.models.resnet34(pretrained=False).conv1
+        bn1 = torchvision.models.resnet34(pretrained=False).bn1
+        resnet34_relu = torchvision.models.resnet34(pretrained=False).relu
+        resnet34_max_pool = torchvision.models.resnet34(pretrained=False).maxpool
+        layer1 = torchvision.models.resnet34(pretrained=False).layer1
+        layer2 = torchvision.models.resnet34(pretrained=False).layer2
+        layer3 = torchvision.models.resnet34(pretrained=False).layer3
+        layer4 = torchvision.models.resnet34(pretrained=False).layer4
     
     backbone = nn.Sequential(
         conv1, bn1, resnet34_relu, resnet34_max_pool,

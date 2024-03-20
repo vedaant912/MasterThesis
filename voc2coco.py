@@ -34,7 +34,7 @@ def get_annpaths(ann_dir_path: str = None,
 
 def get_image_info(a_path, extract_num_from_imgid=True):
     
-    file_name = a_path.split('/')[3]
+    file_name = a_path.split('/')[4]
 
     print(file_name)
     if extract_num_from_imgid:
@@ -100,7 +100,7 @@ def convert_xmls_to_cocojson(annotation_paths: List[str],
 
         output_json_dict['images'].append(img_info)
 
-        with open('./input/test_txts/'+img_info['file_name'].split('.')[0]+'.txt', 'r') as file:
+        with open('./input/80_20_split/test_txts/'+img_info['file_name'].split('.')[0]+'.txt', 'r') as file:
             data = json.load(file)
             
         bboxes = data['bboxes']
@@ -113,7 +113,7 @@ def convert_xmls_to_cocojson(annotation_paths: List[str],
             ann.update({'image_id': img_id, 'id': bnd_id})
             output_json_dict['annotations'].append(ann)
             bnd_id = bnd_id + 1
-    
+
     for label, label_id in label2id.items():
         category_info = {'supercategory': 'none', 'id': label_id, 'name': label}
         output_json_dict['categories'].append(category_info)
@@ -134,13 +134,13 @@ def main():
                         help='path of annotation paths list. It is not need when use --ann_dir and --ann_ids')
     parser.add_argument('--labels', type=str, default=None,
                         help='path to label list.')
-    parser.add_argument('--output', type=str, default='test.json', help='path to output json file')
+    parser.add_argument('--output', type=str, default='./input/80_20_split/test_temp.json', help='path to output json file')
     parser.add_argument('--ext', type=str, default='', help='additional extension of annotation file')
     parser.add_argument('--extract_num_from_imgid', action="store_true",
                         help='Extract image number from the image filename')
     args = parser.parse_args()
     
-    file_list = os.listdir('./input/test_txts/')
+    file_list = os.listdir('./input/80_20_split/test_txts/')
 
     label2id = get_label2id(labels_path='./labels.txt')
     print(label2id)
@@ -152,7 +152,7 @@ def main():
     #     ext=args.ext,
     #     annpaths_list_path=args.ann_paths_list
     # )
-    ann_paths = ['./input/test_txts/' + file for file in file_list]
+    ann_paths = ['./input/80_20_split/test_txts/' + file for file in file_list]
 
     print(ann_paths)
 
